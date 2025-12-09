@@ -5,29 +5,30 @@ import os
 import gspread 
 from google.oauth2.service_account import Credentials 
 
-# --- CONFIGURAÇÃO DAS REGRAS DO SISTEMA (PONTUAÇÃO) ---
+# --- CONFIGURAÇÃO DAS REGRAS DO SISTEMA (PONTUAÇÃO E CICLOS) ---
 
 # Os valores são (Meta UP / Meta Manter) em Pontos Totais no Ciclo
+# CICLOS ATUALIZADOS CONFORME SOLICITADO:
 METAS_PONTUACAO = {
-    'f*ck':    {'ciclo': 3, 'meta_up': 1200, 'meta_manter': 800}, # 3 semanas
-    '100%':    {'ciclo': 4, 'meta_up': 1800, 'meta_manter': 1200}, # 4 semanas
-    'woo':     {'ciclo': 4, 'meta_up': 2500, 'meta_manter': 1800},
-    'sex':     {'ciclo': 5, 'meta_up': 3000, 'meta_manter': 2200},
-    '?':       {'ciclo': 5, 'meta_up': 3500, 'meta_manter': 2800},
-    '!':       {'ciclo': 5, 'meta_up': 4200, 'meta_manter': 3500},
-    'aura':    {'ciclo': 6, 'meta_up': 4800, 'meta_manter': 4000},
-    'all wild':{'ciclo': 6, 'meta_up': 5500, 'meta_manter': 4800},
-    'cute':    {'ciclo': 6, 'meta_up': 6200, 'meta_manter': 5500},
-    '$':       {'ciclo': 7, 'meta_up': 7000, 'meta_manter': 6000}, 
-    'void':    {'ciclo': 7, 'meta_up': 7800, 'meta_manter': 7000},
-    'dawn':    {'ciclo': 7, 'meta_up': 8500, 'meta_manter': 7500},
-    'upper':   {'ciclo': 7, 'meta_up': 9500, 'meta_manter': 8500}, 
+    'f*ck':    {'ciclo': 1, 'meta_up': 1200, 'meta_manter': 800},    # 1 Semana
+    '100%':    {'ciclo': 1, 'meta_up': 1800, 'meta_manter': 1200},   # 1 Semana
+    'woo':     {'ciclo': 2, 'meta_up': 2500, 'meta_manter': 1800},    # 2 Semanas
+    'sex':     {'ciclo': 2, 'meta_up': 3000, 'meta_manter': 2200},    # 2 Semanas
+    '?':       {'ciclo': 3, 'meta_up': 3500, 'meta_manter': 2800},    # 3 Semanas
+    '!':       {'ciclo': 3, 'meta_up': 4200, 'meta_manter': 3500},    # 3 Semanas
+    'aura':    {'ciclo': 3, 'meta_up': 4800, 'meta_manter': 4000},    # 3 Semanas
+    'all wild':{'ciclo': 4, 'meta_up': 5500, 'meta_manter': 4800},    # 4 Semanas
+    'cute':    {'ciclo': 4, 'meta_up': 6200, 'meta_manter': 5500},    # 4 Semanas
+    '$':       {'ciclo': 4, 'meta_up': 7000, 'meta_manter': 6000},    # 4 Semanas
+    'void':    {'ciclo': 5, 'meta_up': 7800, 'meta_manter': 7000},    # 5 Semanas
+    'dawn':    {'ciclo': 5, 'meta_up': 8500, 'meta_manter': 7500},    # 5 Semanas
+    'upper':   {'ciclo': 5, 'meta_up': 9500, 'meta_manter': 8500},    # 5 Semanas
 }
 
 CARGOS_LISTA = list(METAS_PONTUACAO.keys())
+CARGOS_COM_MULT_ESPECIAL = ['f*ck', '100%'] # Cargos onde a Meta pode ser dobrada/triplicada
 
 # --- CONFIGURAÇÃO DA SEMANA ATUAL (Global) ---
-# Será carregada/salva na aba "Config"
 CONFIG_DEFAULT = {
     'semana_desafio_atual': 1,
     'total_semanas_ciclo': 3,
@@ -36,6 +37,9 @@ CONFIG_DEFAULT = {
     'meta_triplicada': False
 }
 CONFIG_COLUNAS = list(CONFIG_DEFAULT.keys())
+
+# --- NOME DA ABA PRINCIPAL ---
+SHEET_NAME_PRINCIPAL = "dados sistema"
 
 
 # --- FUNÇÕES DE CONEXÃO E LÓGICA ---
@@ -73,7 +77,7 @@ col_pontos_final = 'Pontos_Total_Final'
 
 
 @st.cache_data(ttl=5) 
-def carregar_dados(sheet_name="Geral"):
+def carregar_dados(sheet_name):
     """Lê os dados da planilha Google (aba de dados principais ou config)."""
     if gc is None:
         if 'gsheets_error' in st.session_state:
@@ -126,7 +130,7 @@ def carregar_dados(sheet_name="Geral"):
         return pd.DataFrame(columns=COLUNAS_PADRAO)
 
 
-def salvar_dados(df, sheet_name="Geral"):
+def salvar_dados(df, sheet_name):
     """Sobrescreve a aba da planilha Google."""
     if gc is None:
         st.error("Não foi possível salvar os dados: Conexão Sheets inativa.")
@@ -138,7 +142,7 @@ def salvar_dados(df, sheet_name="Geral"):
         worksheet = sh.worksheet(sheet_name)
         
         # Se for a aba principal, garantimos a ordem e tipos
-        if sheet_name == "Geral":
+        if sheet_name == SHEET_NAME_PRINCIPAL:
             df_to_save = df[COLUNAS_PADRAO].astype(str)
         # Se for a aba de Config, garantimos as colunas da config
         elif sheet_name == "Config":
@@ -159,19 +163,26 @@ def salvar_dados(df, sheet_name="Geral"):
         return False
 
 
-def calcular_pontuacao_semana(pontos_base, bonus, mult_ind, mult_global, meta_dobrada, meta_triplicada):
-    """Calcula a pontuação final da semana com todos os modificadores."""
+def calcular_pontuacao_semana(pontos_base, bonus, mult_ind, mult_global):
+    """Calcula a pontuação final da semana com todos os multiplicadores."""
     
+    # Apenas o multiplicador de pontuação é aplicado aqui.
     pontos_final = (pontos_base + bonus) * mult_ind * mult_global
     
-    # Esta lógica não impacta o cálculo da pontuação, mas é crucial para a avaliação de metas
-    mult_meta = 1.0
-    if meta_dobrada:
-        mult_meta = 2.0
-    elif meta_triplicada:
-        mult_meta = 3.0
-        
-    return round(pontos_final, 1), mult_meta
+    return round(pontos_final, 1)
+
+
+def avaliar_multiplicador_meta(cargo, meta_dobrada, meta_triplicada):
+    """Determina o multiplicador de meta (1x, 2x ou 3x) baseado no cargo."""
+    
+    if cargo in CARGOS_COM_MULT_ESPECIAL:
+        if meta_dobrada:
+            return 2.0
+        elif meta_triplicada:
+            return 3.0
+    
+    # Para todos os outros cargos, ou se as flags não estiverem ativas, o multiplicador é 1x
+    return 1.0
 
 
 def avaliar_situacao(cargo, semana_atual, pontos_acumulados, mult_meta_config):
@@ -206,8 +217,8 @@ st.set_page_config(page_title="Sistema de Pontuação Ranking", layout="wide")
 st.title("Sistema de Pontuação Ranking")
 st.markdown("##### Gerenciamento de UP baseado em Pontuação (Chat)")
 
-df = carregar_dados("Geral")
-df_config = carregar_dados("Config")
+df = carregar_dados(SHEET_NAME_PRINCIPAL) # Carrega a aba 'dados sistema'
+df_config = carregar_dados("Config") # Carrega a aba 'Config'
 config_atual = df_config.iloc[0].to_dict()
 
 # Variável de estado para o botão salvar
@@ -220,15 +231,16 @@ with col1:
     st.subheader("Entrada de Dados e Gestão")
     
     # Bloco de Métricas Globais
+    mult_meta_display = "1.0x"
+    if config_atual['meta_dobrada']:
+        mult_meta_display = "2.0x (DOBRADA)"
+    elif config_atual['meta_triplicada']:
+        mult_meta_display = "3.0x (TRIPLICADA)"
+        
     with st.container(border=True):
         st.markdown(f"**Semana do Desafio:** `{int(config_atual['semana_desafio_atual'])}`")
-        meta_status = ""
-        if config_atual['meta_dobrada']:
-            meta_status = " (DOBRADA)"
-        elif config_atual['meta_triplicada']:
-            meta_status = " (TRIPLICADA)"
-
-        st.markdown(f"**Multiplicador Global:** `{config_atual['multiplicador_global']:.1f}x`{meta_status}")
+        st.markdown(f"**Multiplicador Global (Pontos):** `{config_atual['multiplicador_global']:.1f}x`")
+        st.markdown(f"**Multiplicador Meta (f*ck/100%):** `{mult_meta_display}`")
 
     # Abas
     tab_reg, tab_conf = st.tabs(["Registro da Semana", "Configurações"])
@@ -315,10 +327,10 @@ with col1:
         nova_semana_desafio = st.number_input("Semana Global de Desafio (Usada para reset de ciclo)", 
                                               min_value=1, value=semana_desafio, key='nova_semana_desafio')
         
-        novo_mult_global = st.number_input("Multiplicador Global (Ex: 1.0, 1.5, 2.0)", 
+        novo_mult_global = st.number_input("Multiplicador Global de Pontuação (Ex: 1.0, 1.5, 2.0)", 
                                            min_value=0.1, value=float(mult_global), step=0.1, key='novo_mult_global')
         
-        st.markdown("##### Modificadores de Meta")
+        st.markdown("##### Modificadores de Meta (Apenas para `f*ck` e `100%`)")
         
         col_meta1, col_meta2 = st.columns(2)
         with col_meta1:
@@ -362,7 +374,7 @@ with col1:
         if usuario_input is not None:
             
             # Recarrega para garantir dados frescos
-            df_reloaded = carregar_dados("Geral")
+            df_reloaded = carregar_dados(SHEET_NAME_PRINCIPAL)
             config_reloaded = carregar_dados("Config").iloc[0].to_dict()
             
             dados_atuais = df_reloaded[df_reloaded[col_usuario] == st.session_state.select_user_update].iloc[0]
@@ -376,12 +388,17 @@ with col1:
             semana_atual = int(dados_atuais[col_sem])
             pontos_total_final_anterior = dados_atuais[col_pontos_final]
 
-            # 1. Cálculo da Pontuação da Semana e Multiplicador de Meta
-            pontos_semana_calc, mult_meta_config = calcular_pontuacao_semana(
+            # 1. Cálculo da Pontuação da Semana
+            pontos_semana_calc = calcular_pontuacao_semana(
                 pontos_base_input, 
                 bonus_input, 
                 mult_ind_input, 
-                config_reloaded['multiplicador_global'],
+                config_reloaded['multiplicador_global']
+            )
+            
+            # 2. Avalia Multiplicador de Meta para o Cargo Específico
+            mult_meta_config = avaliar_multiplicador_meta(
+                cargo_input, 
                 config_reloaded['meta_dobrada'],
                 config_reloaded['meta_triplicada']
             )
@@ -389,7 +406,7 @@ with col1:
             pontos_acumulados_total = pontos_acumulados_anteriores + pontos_semana_calc
             proxima_semana = semana_atual + 1
             
-            # 2. Avaliação de Situação
+            # 3. Avaliação de Situação
             total_semanas_ciclo_cargo = METAS_PONTUACAO.get(cargo_input, {'ciclo': 3})['ciclo']
             
             if proxima_semana > total_semanas_ciclo_cargo:
@@ -405,7 +422,7 @@ with col1:
                 situacao = f"Em andamento ({proxima_semana}/{total_semanas_ciclo_cargo})"
                 semanas_restantes = total_semanas_ciclo_cargo - proxima_semana
             
-            # 3. Lógica de UP/REBAIXAR
+            # 4. Lógica de UP/REBAIXAR
             novo_cargo = cargo_input 
             nova_semana = proxima_semana
             novo_pontos_acumulados = pontos_acumulados_total
@@ -431,7 +448,7 @@ with col1:
                     except ValueError:
                         novo_cargo = 'f*ck'
             
-            # 4. Prepara os novos dados
+            # 5. Prepara os novos dados
             novo_dado = {
                 col_usuario: usuario_input, 
                 col_cargo: novo_cargo, 
@@ -445,10 +462,10 @@ with col1:
                 col_pontos_final: round(pontos_total_final_anterior + pontos_semana_calc, 1), 
             }
             
-            # 5. Atualiza o DataFrame e salva
+            # 6. Atualiza o DataFrame e salva
             df.loc[df[df[col_usuario] == usuario_input].index[0]] = novo_dado
 
-            if salvar_dados(df, sheet_name="Geral"):
+            if salvar_dados(df, SHEET_NAME_PRINCIPAL):
                 st.success(f"Dados salvos! Situação: {situacao} | Próximo Cargo: **{novo_cargo}**")
                 st.rerun()
         else:
@@ -456,27 +473,26 @@ with col1:
 
     
     # ----------------------------------------------------
-    # --- BLOCO: VISUALIZAÇÃO DE METAS (PONTUAÇÃO) ---
+    # --- BLOCO: VISUALIZAÇÃO SIMPLES DE METAS ---
     # ----------------------------------------------------
     st.markdown("---")
     
     # Cria um DataFrame de Metas para visualização
-    metas_data_pontos = []
+    metas_data_pontos_simples = []
     
-    # Itera sobre o dicionário METAS_PONTUACAO
     for cargo, metas in METAS_PONTUACAO.items():
-        metas_data_pontos.append({
+        metas_data_pontos_simples.append({
             "Cargo": cargo,
             "Ciclo (Semanas)": metas['ciclo'],
             "Meta UP (Pontos)": metas['meta_up'],
             "Meta Manter (Pontos)": metas['meta_manter']
         })
         
-    df_metas_pontos = pd.DataFrame(metas_data_pontos)
+    df_metas_pontos_simples = pd.DataFrame(metas_data_pontos_simples)
 
-    with st.expander("Tabela de Metas por Cargo (Pontos Totais) 📋"):
+    with st.expander("Tabela de Metas por Cargo (Pontos e Ciclos) 📋", expanded=False):
         st.dataframe(
-            df_metas_pontos,
+            df_metas_pontos_simples,
             hide_index=True,
             use_container_width=True,
         )
@@ -509,7 +525,7 @@ with col1:
                     
                     df = pd.concat([df, pd.DataFrame([novo_dado_add])], ignore_index=True)
                     
-                    if salvar_dados(df, sheet_name="Geral"):
+                    if salvar_dados(df, SHEET_NAME_PRINCIPAL):
                         st.success(f"Membro **{usuario_input_add}** adicionado!")
                         st.rerun()
             else:
@@ -530,7 +546,7 @@ with col1:
                 
                 if st.button(f"Confirmar Remoção de {usuario_a_remover}", type="secondary", key='final_remove_button', use_container_width=True):
                     df = df[df[col_usuario] != usuario_a_remover]
-                    salvar_dados(df, sheet_name="Geral") 
+                    salvar_dados(df, SHEET_NAME_PRINCIPAL) 
                     st.success(f"Membro {usuario_a_remover} removido com sucesso!")
                     st.rerun()
         
@@ -546,7 +562,7 @@ with col1:
             with col_reset1:
                 if st.button("SIM, ZERAR TUDO", type="secondary", key='sim_reset'):
                     df_reset = pd.DataFrame(columns=df.columns) 
-                    salvar_dados(df_reset, sheet_name="Geral") 
+                    salvar_dados(df_reset, SHEET_NAME_PRINCIPAL) 
                     st.success("Tabela zerada com sucesso!")
                     st.session_state.confirm_reset = False
                     st.rerun()
