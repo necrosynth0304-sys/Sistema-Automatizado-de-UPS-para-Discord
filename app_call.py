@@ -425,7 +425,3 @@ with col2:
         total_call = df[col_horas_semana].sum()
         
         st.metric("Total Horas Call (Última Rodada)", f"{total_call:.1f}")
-```
-
-Basta substituir o conteúdo do seu `app_call.py` no GitHub por este código. A nova tabela de metas aparecerá na coluna da esquerda, logo acima das Ferramentas de Gestão.
-
