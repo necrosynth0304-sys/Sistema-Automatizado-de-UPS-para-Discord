@@ -159,6 +159,17 @@ def avaliar_situacao(cargo, semana_atual, pontos_acumulados):
         return situacao, 0
 
 
+def limpar_campos_interface():
+    """Limpa os campos de entrada de Pontuação e Bônus após o processamento."""
+    # Zera os inputs de pontos
+    if 'pontos_base_input' in st.session_state:
+        st.session_state.pontos_base_input = 0.0
+    if 'bonus_input' in st.session_state:
+        st.session_state.bonus_input = 0.0
+    # A Semana, o Cargo e o Multiplicador são lidos do DataFrame na próxima execução
+    # e não precisam ser limpos, apenas os valores que o operador acabou de digitar.
+
+
 # --- INTERFACE (STREAMLIT) ---
 
 st.set_page_config(page_title="Sistema de Pontuação Ranking", layout="wide")
@@ -388,9 +399,10 @@ with col_upar:
             st.markdown("##### Pontuação Semanal")
             col_pts1, col_pts2 = st.columns(2)
             with col_pts1:
-                pontos_base_input = st.number_input("Pontos Base (Chat)", min_value=0.0, value=0.0, step=1.0, key='pontos_base_input')
+                # O valor inicial é 0.0, mas após o primeiro registro (st.rerun) ele volta a 0.0
+                pontos_base_input = st.number_input("Pontos Base (Chat)", min_value=0.0, value=st.session_state.get('pontos_base_input', 0.0), step=1.0, key='pontos_base_input')
             with col_pts2:
-                bonus_input = st.number_input("Bônus Extras", min_value=0.0, value=0.0, step=1.0, key='bonus_input')
+                bonus_input = st.number_input("Bônus Extras", min_value=0.0, value=st.session_state.get('bonus_input', 0.0), step=1.0, key='bonus_input')
 
             mult_ind_input = st.number_input(f"Multiplicador Individual (Atual: {mult_ind_anterior:.1f}x)", 
                                              min_value=0.1, value=float(mult_ind_anterior), step=0.1, key='mult_ind_input')
@@ -435,8 +447,7 @@ with col_upar:
             
             # --- Lógica de Acumulação e Reset (Chave!) ---
             
-            # Se a semana registrada for 1, consideramos que o usuário está iniciando um ciclo NOVO,
-            # então zeramos os pontos acumulados ANTES de somar os pontos desta semana.
+            # Se a semana registrada for 1, consideramos que o usuário está iniciando um ciclo NOVO
             if semana_registrada_manual == 1:
                  pontos_acumulados_a_somar = 0.0
             else:
@@ -473,12 +484,24 @@ with col_upar:
                 if situacao_final == "UPADO":
                     try:
                         indice_atual = CARGOS_LISTA.index(cargo_input)
-                        # Avança um cargo
-                        if indice_atual < len(CARGOS_LISTA) - 1:
-                            novo_cargo_para_tabela = CARGOS_LISTA[indice_atual + 1]
-                        # Se for o último cargo, mantém o último cargo.
+                        meta_up = METAS_PONTUACAO[cargo_input]['meta_up']
+                        
+                        # --- CÁLCULO DE UP MÚLTIPLO ---
+                        # 1. Determina quantas vezes a meta UP foi atingida (mínimo 1, já que o status é UPADO)
+                        # O valor `pontos_acumulados_total` é usado para este cálculo.
+                        multiplicador_up = max(1, int(pontos_acumulados_total // meta_up))
+                        
+                        novo_indice = indice_atual + multiplicador_up
+                        
+                        # 2. Limita para não ultrapassar o último cargo
+                        if novo_indice < len(CARGOS_LISTA):
+                            novo_cargo_para_tabela = CARGOS_LISTA[novo_indice]
+                        else:
+                            novo_cargo_para_tabela = CARGOS_LISTA[-1] # Cargo Máximo
+                        # --- FIM CÁLCULO DE UP MÚLTIPLO ---
+                            
                     except ValueError:
-                        pass # Não faz nada se o cargo for inválido
+                        pass # Mantém o cargo atual se não for encontrado
 
                         
                 elif situacao_final == "REBAIXADO":
@@ -491,7 +514,6 @@ with col_upar:
                     except ValueError:
                         novo_cargo_para_tabela = 'f*ck'
 
-                # Se for MANTEVE, o cargo_input (cargo atual) já está correto.
             
             # 4. Prepara os novos dados
             novo_dado = {
@@ -511,9 +533,9 @@ with col_upar:
             df.loc[df[df[col_usuario] == usuario_input_upar].index[0]] = novo_dado
 
             if salvar_dados(df, SHEET_NAME_PRINCIPAL):
+                limpar_campos_interface() # Limpa os campos de input de pontos/bônus
                 st.session_state.usuario_selecionado_id = usuario_input_upar # Persiste o usuário selecionado
-                st.success(f"Dados salvos! Situação: {situacao_para_tabela} | Próximo Cargo: **{novo_cargo_para_tabela}**")
-                # O RERUN vai forçar o recarregamento do DF e a interface lerá o novo cargo/status.
+                st.success(f"Dados salvos! Situação: {situacao_para_tabela} | Novo Cargo: **{novo_cargo_para_tabela}** (Avançou {multiplicador_up} níveis)")
                 st.rerun()
         else:
             st.error("Selecione um membro válido antes de salvar.")
