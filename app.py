@@ -1,30 +1,34 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import os 
 import gspread 
 from google.oauth2.service_account import Credentials 
 
 # --- CONFIGURAÇÃO DAS REGRAS DO SISTEMA (PONTUAÇÃO E CICLOS) ---
 
-# Os valores são (Meta UP / Meta Manter) em Pontos Totais no Ciclo
+# NOVO MAPA DE PONTUAÇÃO (Cargos 1 a 13)
+# Baseado na conversão: Mensagens / 50 = Pontos (com ajustes de arredondamento)
 METAS_PONTUACAO = {
-    'f*ck':    {'ciclo': 1, 'meta_up': 1200, 'meta_manter': 800},    # 1 Semana
-    '100%':    {'ciclo': 1, 'meta_up': 1800, 'meta_manter': 1200},   # 1 Semana
-    'woo':     {'ciclo': 2, 'meta_up': 2500, 'meta_manter': 1800},    # 2 Semanas
-    'sex':     {'ciclo': 2, 'meta_up': 3000, 'meta_manter': 2200},    # 2 Semanas
-    '?':       {'ciclo': 3, 'meta_up': 3500, 'meta_manter': 2800},    # 3 Semanas
-    '!':       {'ciclo': 3, 'meta_up': 4200, 'meta_manter': 3500},    # 3 Semanas
-    'aura':    {'ciclo': 3, 'meta_up': 4800, 'meta_manter': 4000},    # 3 Semanas
-    'all wild':{'ciclo': 4, 'meta_up': 5500, 'meta_manter': 4800},    # 4 Semanas
-    'cute':    {'ciclo': 4, 'meta_up': 6200, 'meta_manter': 5500},    # 4 Semanas
-    '$':       {'ciclo': 4, 'meta_up': 7000, 'meta_manter': 6000},    # 4 Semanas
-    'void':    {'ciclo': 5, 'meta_up': 7800, 'meta_manter': 7000},    # 5 Semanas
-    'dawn':    {'ciclo': 5, 'meta_up': 8500, 'meta_manter': 7500},    # 5 Semanas
-    'upper':   {'ciclo': 5, 'meta_up': 9500, 'meta_manter': 8500},    # 5 Semanas
+    'f*ck':    {'ciclo': 1, 'meta_up': 15, 'meta_manter': 10},       # Cargo 1
+    '100%':    {'ciclo': 1, 'meta_up': 20, 'meta_manter': 15},       # Cargo 2
+    'woo':     {'ciclo': 2, 'meta_up': 70, 'meta_manter': 60},       # Cargo 3
+    'sex':     {'ciclo': 2, 'meta_up': 100, 'meta_manter': 80},      # Cargo 4
+    '?':       {'ciclo': 3, 'meta_up': 195, 'meta_manter': 150},     # Cargo 5
+    '!':       {'ciclo': 3, 'meta_up': 336, 'meta_manter': 260},     # Cargo 6
+    'aura':    {'ciclo': 4, 'meta_up': 440, 'meta_manter': 336},     # Cargo 7
+    'all wild':{'ciclo': 4, 'meta_up': 580, 'meta_manter': 400},     # Cargo 8
+    'cute':    {'ciclo': 4, 'meta_up': 681, 'meta_manter': 581},     # Cargo 9
+    '$':       {'ciclo': 4, 'meta_up': 801, 'meta_manter': 740},     # Cargo 10
+    'void':    {'ciclo': 5, 'meta_up': 971, 'meta_manter': 880},     # Cargo 11 (Progressão)
+    'dawn':    {'ciclo': 5, 'meta_up': 1141, 'meta_manter': 1025},   # Cargo 12 (Progressão)
+    'upper':   {'ciclo': 5, 'meta_up': 1321, 'meta_manter': 1180},   # Cargo 13 (Progressão)
 }
 
 CARGOS_LISTA = list(METAS_PONTUACAO.keys())
+
+# --- CONSTANTES DE CONVERSÃO ---
+MENSAGENS_POR_PONTO = 50 
+DIAS_POR_SEMANA = 7
 
 # --- NOME DA ABA PRINCIPAL ---
 SHEET_NAME_PRINCIPAL = "dados sistema"
@@ -162,7 +166,7 @@ def avaliar_situacao(cargo, semana_atual, pontos_acumulados):
 def limpar_campos_interface():
     """Remove as chaves de session_state ligadas aos widgets de input para forçar o valor padrão (0.0) na próxima execução."""
     keys_to_delete = [
-        'pontos_base_input', 
+        'mensagens_input', # Chave alterada para mensagens
         'bonus_input', 
     ]
     
@@ -292,22 +296,30 @@ with col_ferramentas:
 with col_upar:
     st.subheader("Upar (Registro de Dados)")
     
-    # --- BLOCO: VISUALIZAÇÃO SIMPLES DE METAS ---
+    # --- BLOCO: VISUALIZAÇÃO SIMPLES DE METAS (ATUALIZADO) ---
     
-    # Cria um DataFrame de Metas para visualização
+    # Cria um DataFrame de Metas para visualização, calculando as mensagens necessárias
     metas_data_pontos_simples = []
     
-    for cargo, metas in METAS_PONTUACAO.items():
+    for idx, (cargo, metas) in enumerate(METAS_PONTUACAO.items()):
+        
+        # Converte pontos para mensagens para display
+        mensagens_up = metas['meta_up'] * MENSAGENS_POR_PONTO
+        
+        dias_ciclo = metas['ciclo'] * DIAS_POR_SEMANA
+        
         metas_data_pontos_simples.append({
-            "Cargo": cargo,
-            "Ciclo (Semanas)": metas['ciclo'],
-            "Meta UP (Pts)": metas['meta_up'],
-            "Meta Manter (Pts)": metas['meta_manter']
+            "Cargo (#)": f"{cargo} ({idx+1})",
+            "Ciclo (Sem)": metas['ciclo'],
+            "Meta UP (pts)": metas['meta_up'],
+            "Meta UP (msgs)": f"{mensagens_up:,.0f}",
+            "Meta Manter (pts)": metas['meta_manter'], # Apenas pontos para manter
+            "Msgs/Dia (UP)": f"{mensagens_up / dias_ciclo:,.0f}",
         })
         
     df_metas_pontos_simples = pd.DataFrame(metas_data_pontos_simples)
 
-    with st.expander("Tabela de Metas (Ciclos e Pontos) 📋", expanded=False):
+    with st.expander("Tabela de Metas (Pontos e Mensagens) 📋", expanded=False):
         st.dataframe(
             df_metas_pontos_simples,
             hide_index=True,
@@ -350,7 +362,7 @@ with col_upar:
             # --------------------------------------------------------
             
             pontos_acumulados_anteriores = dados_atuais[col_pontos_acum]
-            semana_atual_dados = int(dados_atuais[col_sem]) # Esta é a próxima semana a ser registrada (ou semana 1 se ciclo anterior terminou)
+            semana_atual_dados = int(dados_atuais[col_sem]) 
             mult_ind_anterior = dados_atuais[col_mult_ind]
             
             # Bloco de Informação do Membro
@@ -370,19 +382,15 @@ with col_upar:
                     
                     # --- Lógica para Mensagem de Info e Sugestão de Semana ---
                     
-                    # Apenas exibe a info se houve um UP/REBAIXA/MANTEVE na última execução
                     if st.session_state.novo_cargo_apos_ciclo == cargo_input and dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
                         proxima_semana_sugerida = 1
                         st.info(f"Ciclo finalizado ({dados_atuais[col_sit]}). Registre a **Semana 1** do cargo atual (**{cargo_input}**).")
-                        # Limpa o state para não exibir a mensagem novamente
                         st.session_state.novo_cargo_apos_ciclo = None
                     
                     elif dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
-                        # Se o DF mostra que o ciclo anterior terminou, sugere Semana 1
                         proxima_semana_sugerida = 1
                         
                     else:
-                        # Se o ciclo está em andamento, sugere a próxima semana
                         proxima_semana_sugerida = semana_atual_dados
                         if semana_atual_dados > total_semanas_ciclo_cargo_selecionado:
                             st.warning(f"O ciclo do cargo **{cargo_input}** está incompleto. Sugestão: Semana {total_semanas_ciclo_cargo_selecionado}.")
@@ -403,11 +411,10 @@ with col_upar:
                     # -----------------------------------
                         
                     # 2. SEMANA DO CICLO (Permitindo Edição Manual)
-                    # O valor inicial é baseado na lógica acima (proxima_semana_sugerida)
                     semana_input = st.number_input(
                         f"Semana do Ciclo (Máx: {total_semanas_ciclo_cargo_selecionado})", 
                         min_value=1, 
-                        max_value=total_semanas_ciclo_cargo_selecionado, # Limita ao ciclo do cargo SELECIONADO
+                        max_value=total_semanas_ciclo_cargo_selecionado, 
                         value=int(proxima_semana_sugerida), 
                         key='semana_input_update'
                     )
@@ -422,13 +429,14 @@ with col_upar:
             
             st.divider()
 
-            st.markdown("##### Pontuação Semanal")
+            st.markdown("##### Dados para o Registro Semanal")
             col_pts1, col_pts2 = st.columns(2)
             with col_pts1:
-                # Usa .get() para valores que serão limpos
-                pontos_base_input = st.number_input("Pontos Base (Chat)", min_value=0.0, value=st.session_state.get('pontos_base_input', 0.0), step=1.0, key='pontos_base_input')
+                # *** ENTRADA DE MENSAGENS ***
+                mensagens_input = st.number_input("Mensagens Enviadas (Chat)", min_value=0, value=int(st.session_state.get('mensagens_input', 0)), step=10, key='mensagens_input', format="%d")
+                
             with col_pts2:
-                bonus_input = st.number_input("Bônus Extras", min_value=0.0, value=st.session_state.get('bonus_input', 0.0), step=1.0, key='bonus_input')
+                bonus_input = st.number_input("Bônus Extras (Pts)", min_value=0.0, value=st.session_state.get('bonus_input', 0.0), step=1.0, key='bonus_input')
 
             mult_ind_input = st.number_input(f"Multiplicador Individual (Atual: {mult_ind_anterior:.1f}x)", 
                                              min_value=0.1, value=float(mult_ind_anterior), step=0.1, key='mult_ind_input')
@@ -450,15 +458,18 @@ with col_upar:
             
             # Recarrega para garantir dados frescos 
             df_reloaded = carregar_dados(SHEET_NAME_PRINCIPAL)
-            
-            # Use o valor do selectbox `select_user_update` para encontrar o membro no DF
             dados_atuais = df_reloaded[df_reloaded[col_usuario] == st.session_state.select_user_update].iloc[0]
             
             # Captura os dados de entrada
-            pontos_base_input = st.session_state.pontos_base_input
+            mensagens_input = st.session_state.mensagens_input
+            
+            # *** CÁLCULO CHAVE: CONVERTE MENSAGENS EM PONTOS BASE ***
+            # Mensagens / 50 = Pontos Base
+            pontos_base_input = mensagens_input / float(MENSAGENS_POR_PONTO)
+            
             bonus_input = st.session_state.bonus_input
             mult_ind_input = st.session_state.mult_ind_input
-            cargo_input = st.session_state.cargo_select_update # Cargo que ele estava no momento do registro
+            cargo_input = st.session_state.cargo_select_update 
             semana_registrada_manual = st.session_state.semana_input_update 
             
             pontos_acumulados_anteriores = dados_atuais[col_pontos_acum]
@@ -474,10 +485,8 @@ with col_upar:
             
             # Lógica de Acumulação e Reset 
             if semana_registrada_manual == 1 and dados_atuais[col_sit] not in ["UPADO", "REBAIXADO", "MANTEVE"]:
-                 # Se a semana é 1, mas o ciclo anterior não terminou, acumula
                  pontos_acumulados_a_somar = pontos_acumulados_anteriores
             elif semana_registrada_manual == 1 and dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
-                 # Se a semana é 1 e o ciclo anterior terminou, zera
                  pontos_acumulados_a_somar = 0.0
             else:
                  pontos_acumulados_a_somar = pontos_acumulados_anteriores
@@ -507,31 +516,25 @@ with col_upar:
                 
                 # Prepara o estado para o PRÓXIMO ciclo (Semana 1)
                 nova_semana_para_tabela = 1
-                novo_pontos_acumulados_para_tabela = 0.0 # Zera para o próximo ciclo
+                novo_pontos_acumulados_para_tabela = 0.0 
                 
                 if situacao_final == "UPADO":
                     try:
                         indice_atual = CARGOS_LISTA.index(cargo_input)
                         meta_up = METAS_PONTUACAO[cargo_input]['meta_up']
                         
-                        # --- CÁLCULO DE UP MÚLTIPLO ---
                         multiplicador_up = max(1, int(pontos_acumulados_total / float(meta_up)))
-                        
                         novo_indice = indice_atual + multiplicador_up
                         
-                        # Limita para não ultrapassar o último cargo
                         if novo_indice < len(CARGOS_LISTA):
                             novo_cargo_para_tabela = CARGOS_LISTA[novo_indice]
                         else:
-                            # Se for o cargo máximo, calcula quantos níveis avançou para a mensagem de sucesso
                             multiplicador_up = len(CARGOS_LISTA) - 1 - indice_atual 
                             novo_cargo_para_tabela = CARGOS_LISTA[-1] 
-                        # --- FIM CÁLCULO DE UP MÚLTIPLO ---
                             
                     except ValueError:
                         pass 
 
-                        
                 elif situacao_final == "REBAIXADO":
                     try:
                         indice_atual = CARGOS_LISTA.index(cargo_input)
@@ -546,7 +549,7 @@ with col_upar:
                         multiplicador_up = 0
                 
                 elif situacao_final == "MANTEVE":
-                    multiplicador_up = 0 # Mantém o cargo
+                    multiplicador_up = 0 
             
             # 4. Prepara os novos dados
             novo_dado = {
@@ -566,20 +569,16 @@ with col_upar:
             df.loc[df[df[col_usuario] == usuario_input_upar].index[0]] = novo_dado
 
             if salvar_dados(df, SHEET_NAME_PRINCIPAL):
-                limpar_campos_interface() # Limpa os campos de input de pontos/bônus
-                st.session_state.usuario_selecionado_id = usuario_input_upar # Persiste o usuário selecionado
-                
-                # --- CHAVE: Salva o novo cargo no state para a próxima execução exibir a st.info correta ---
+                limpar_campos_interface() 
+                st.session_state.usuario_selecionado_id = usuario_input_upar 
                 st.session_state.novo_cargo_apos_ciclo = novo_cargo_para_tabela
                 
                 msg_avanco = ""
                 if situacao_final == "UPADO":
-                    # Mensagem de sucesso deve mostrar o cargo para o qual ele PULOU
                     msg_avanco = f" (Avançou **{multiplicador_up}** níveis para **{novo_cargo_para_tabela}**!)"
                 elif situacao_final == "REBAIXADO":
                     msg_avanco = f" (Rebaixou 1 nível para **{novo_cargo_para_tabela}**)"
                 
-                # Mensagem de sucesso
                 st.success(f"Dados salvos! Situação: **{situacao_para_tabela}** | Próximo Ciclo: **{novo_cargo_para_tabela}**{msg_avanco}")
                 st.rerun()
         else:
@@ -595,7 +594,6 @@ with col_ranking:
     st.info(f"Total de Membros Registrados: **{len(df)}**")
     
     if not df.empty: 
-        # Classifica por Pontuação Final (Total Geral) e Cargo
         df_display = df.sort_values(by=[col_pontos_final, col_cargo], ascending=[False, True])
                                     
         st.dataframe(
@@ -607,7 +605,6 @@ with col_ranking:
             ),
             use_container_width=True,
             height=600,
-            # Ordem das colunas na tabela de ranking
             column_order=[col_usuario, col_cargo, col_sit, col_pontos_acum, col_pontos_sem, col_bonus_sem, col_mult_ind, 'Data_Ultima_Atualizacao']
         )
     else:
