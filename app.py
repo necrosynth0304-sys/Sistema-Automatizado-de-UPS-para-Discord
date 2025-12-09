@@ -4,18 +4,16 @@ from datetime import datetime
 import os 
 
 # --- DEPENDÊNCIAS GOOGLE SHEETS ---
-# A presença dessas importações verifica se os pacotes foram instalados.
 try:
     import gspread
     from google.oauth2.service_account import Credentials
 except ImportError:
-    # Esta mensagem só aparecerá se houver falha na instalação dos pacotes.
     st.error("Dependências gspread ou google-oauth2-service-account ausentes. Instale via 'pip install gspread google-oauth2-service-account'.")
     gspread = None
     Credentials = None
 
 
-# --- CONFIGURAÇÃO DAS REGRAS DO SISTEMA (NOVAS HIERARQUIAS) ---
+# --- CONFIGURAÇÃO DAS REGRAS DO SISTEMA ---
 
 METAS = {
     'f*ck':    {'ciclo': 1, 'meta_pts': 20,   'manter': 13}, 
@@ -50,8 +48,6 @@ def get_gsheets_client():
         credentials = Credentials.from_service_account_info(creds_json, scopes=scopes)
         return gspread.authorize(credentials)
     except Exception as e:
-        # Erro de autenticação (Secrets.toml ou permissão de conta inválida)
-        # O Streamlit reporta esse erro na interface via a função carregar_dados
         return None
 
 gc = get_gsheets_client()
@@ -79,7 +75,6 @@ col_msgs = 'Ultima_Semana_Msgs'
 def carregar_dados():
     """Lê os dados da planilha Google e retorna um DataFrame."""
     if gc is None:
-        # MENSAGEM DE ERRO NA INTERFACE (se a autenticação falhar)
         st.error("ERRO: A conexão com o Google Sheets falhou. Os dados NÃO serão salvos na nuvem.")
         return pd.DataFrame(columns=COLUNAS_PADRAO)
         
@@ -103,16 +98,17 @@ def carregar_dados():
         return df
 
     except Exception as e:
-        # Erro de URL/Nome de Aba ou permissão de acesso à Planilha
-        st.error(f"Erro ao carregar dados do Google Sheets. Verifique a URL e o nome da aba. ({e})")
+        st.error(f"ERRO: A conexão com o Google Sheets falhou. Verifique a URL e o nome da aba. ({e})")
         return pd.DataFrame(columns=COLUNAS_PADRAO)
 
 
 def salvar_dados(df):
-    """Sobrescreve a aba da planilha Google com o novo DataFrame."""
+    """Sobrescreve a aba da planilha Google com o novo DataFrame. Implementação de Debug na UI."""
     if gc is None:
         st.error("Não foi possível salvar os dados: Conexão Sheets inativa.")
         return
+
+    st.info("Tentando salvar dados na planilha...") # Linha de Debug na UI
 
     try:
         SPREADSHEET_URL = st.secrets["gsheets_config"]["spreadsheet_url"]
@@ -122,17 +118,19 @@ def salvar_dados(df):
         worksheet = sh.worksheet(SHEET_NAME)
         
         df_to_save = df[COLUNAS_PADRAO].astype(str)
-        
         data = [df_to_save.columns.values.tolist()] + df_to_save.values.tolist()
         
-        # --- CORREÇÃO DO WARNING DEPRECATION ---
         worksheet.clear()
-        worksheet.update('A1', values=data) # Passando 'values' como argumento nomeado
+        worksheet.update('A1', values=data)
         
         st.cache_data.clear() 
         
     except Exception as e:
-        st.error(f"Erro ao salvar dados no Google Sheets: {e}")
+        # --- NOVO CÓDIGO DE DEBUG NA INTERFACE ---
+        st.error("ERRO CRÍTICO: Falha na Escrita ou Permissão Negada (403)!")
+        st.exception(e) # Exibe o traceback completo para diagnóstico
+        return 
+        # ----------------------------------------
         
 # --- FUNÇÕES DE LÓGICA (Inalteradas) ---
 def calcular_pontos_semana(msgs, horas, rush_hour, desafio_tipo, participou_desafio):
@@ -365,6 +363,9 @@ with col1:
     # --- SEÇÃO: REMOÇÃO DE USUÁRIOS POR LISTA ---
     st.subheader("Remover Usuários")
     
+    if 'confirm_reset' not in st.session_state:
+        st.session_state.confirm_reset = False
+
     if not df.empty:
         opcoes_remocao = sorted(df[col_usuario].unique().tolist())
         usuario_a_remover = st.selectbox("Selecione o Usuário para Remover", ['-- Selecione --'] + opcoes_remocao, key='remove_user_select')
@@ -386,9 +387,6 @@ with col1:
     # --- RESET TOTAL ---
     st.subheader("Reset Global")
     
-    if 'confirm_reset' not in st.session_state:
-        st.session_state.confirm_reset = False
-
     if st.button("Resetar Tabela INTEIRA"):
         st.session_state.confirm_reset = True
         
@@ -423,7 +421,7 @@ with col2:
                                     ascending=[False, True])
                                     
         st.dataframe(
-            df_display.style.map( # Alterado de applymap para map (para remover o warning)
+            df_display.style.map(
                 lambda x: 'background-color: #d4edda; color: green' if 'UPADO' in str(x) else 
                           ('background-color: #f8d7da; color: red' if 'REBAIXADO' in str(x) else ''),
                 subset=[col_sit]
