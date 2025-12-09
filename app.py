@@ -354,7 +354,6 @@ with col1:
             salvar_dados(df) 
             
             st.success(f"Dados salvos! Situação: {situacao} | Próximo Cargo: **{novo_cargo}**")
-            st.rerun()
         else:
             st.error("Selecione ou digite um nome de usuário válido.")
     
@@ -458,3 +457,4 @@ with col2:
             st.subheader(f"Última Atividade de {usuario_selecionado}")
             st.metric("Mensagens Registradas", dados_individuais[col_msgs])
             st.metric("Horas em Call Registradas", dados_individuais[col_horas])
+
