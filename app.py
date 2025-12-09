@@ -19,11 +19,8 @@ METAS = {
     'low':   {'ciclo': 1, 'meta_pts': 20,   'manter': 13},
 }
 
-# 2. Sequência de Promoção e Rebaixamento
+# 2. Sequência de Promoção
 CARGOS_LISTA = list(METAS.keys())
-SEQUENCIA_PROMO = {cargo_atual: CARGOS_LISTA[i + 1] 
-                   for i, cargo_atual in enumerate(CARGOS_LISTA[:-1])}
-SEQUENCIA_PROMO['god'] = 'god' # Cargo máximo
 
 # Configuração de Arquivo e Opções
 ARQUIVO_DADOS = 'sistema_cargos_final.csv'
@@ -74,10 +71,16 @@ def avaliar_situacao(cargo, pts_acumulados, semana_atual):
     ciclo_max = meta['ciclo']
     
     situacao = ""
+    fator_multiplicacao = 0 # Fator F = quantas vezes a meta foi atingida
     
     if semana_atual >= ciclo_max:
         if pts_acumulados >= meta_area:
             situacao = "UPADO"
+            
+            # Calcula o fator de multiplicação (mínimo 1 se UPADO)
+            fator_multiplicacao = int(pts_acumulados // meta_area)
+            if fator_multiplicacao < 1: fator_multiplicacao = 1
+                
         elif pts_acumulados >= meta_manter:
             situacao = "MANTEVE"
         else:
@@ -85,7 +88,7 @@ def avaliar_situacao(cargo, pts_acumulados, semana_atual):
     else:
         situacao = f"Em andamento ({semana_atual}/{ciclo_max})"
         
-    return situacao
+    return situacao, fator_multiplicacao # Retorna a situação e o fator
 
 # --- INTERFACE (STREAMLIT) ---
 
@@ -163,7 +166,7 @@ with col1:
     if st.button("Salvar / Atualizar Semana", type="primary"):
         if usuario_input and usuario_input != '-- Novo Usuário --':
             
-            # --- Lógica de Cálculo e Avaliação (Mantida) ---
+            # --- Lógica de Cálculo e Avaliação ---
             pts_semana_multi = calcular_pontos_semana(msgs_input, horas_input, check_rush, tipo_desafio, check_desafio)
             meta_do_cargo = METAS[cargo_input]['meta_pts']
             pts_semana_final = pts_semana_multi
@@ -172,7 +175,9 @@ with col1:
             pts_semana_final += bonus_fixo_input
 
             pts_acumulados_total = pts_acumulados_anteriores + pts_semana_final
-            situacao = avaliar_situacao(cargo_input, pts_acumulados_total, semana_input)
+            
+            # Recebe a situação E o fator de multiplicação
+            situacao, fator_multiplicacao = avaliar_situacao(cargo_input, pts_acumulados_total, semana_input)
 
             novo_cargo = cargo_input 
             
@@ -181,9 +186,45 @@ with col1:
                 nova_semana = 1
                 novo_pts_acumulados = 0.0
                 
-                # Ajusta o cargo se UPADO/REBAIXADO
+                # --- Lógica de UP Múltiplo LIMITADO (CORRIGIDA) ---
                 if situacao == "UPADO":
-                    novo_cargo = SEQUENCIA_PROMO.get(cargo_input, 'god')
+                    indice_atual = CARGOS_LISTA.index(cargo_input)
+                    niveis_a_avancar = 1 # Padrão: 1 nível
+                    
+                    if cargo_input == 'low':
+                        if fator_multiplicacao >= 3:
+                            # Low triplicou a meta -> Máximo: 'damn' (3 níveis)
+                            indice_limite = CARGOS_LISTA.index('damn')
+                            niveis_a_avancar = indice_limite - indice_atual
+                        elif fator_multiplicacao == 2:
+                            # Low duplicou a meta -> Máximo: 'power' (2 níveis)
+                            indice_limite = CARGOS_LISTA.index('power')
+                            niveis_a_avancar = indice_limite - indice_atual
+                        # Se fator_multiplicacao for 1, o avanço é 1 ('root')
+                        
+                    elif cargo_input == 'root':
+                        if fator_multiplicacao >= 3:
+                            # Root triplicou a meta -> Máximo: 'big' (3 níveis)
+                            indice_limite = CARGOS_LISTA.index('big')
+                            niveis_a_avancar = indice_limite - indice_atual
+                        elif fator_multiplicacao == 2:
+                            # Root duplicou a meta -> Máximo: 'damn' (2 níveis)
+                            indice_limite = CARGOS_LISTA.index('damn')
+                            niveis_a_avancar = indice_limite - indice_atual
+                        # Se fator_multiplicacao for 1, o avanço é 1 ('power')
+
+                    # Aplica o avanço e garante que não passe de 'god'
+                    novo_indice = indice_atual + niveis_a_avancar
+                    
+                    if novo_indice >= len(CARGOS_LISTA) - 1:
+                        novo_cargo = CARGOS_LISTA[-1] # 'god'
+                    else:
+                        novo_cargo = CARGOS_LISTA[novo_indice]
+                        
+                    if niveis_a_avancar > 1:
+                        st.balloons()
+                        st.warning(f"UP MÚLTIPLO ATIVADO! O usuário subiu {niveis_a_avancar} níveis!")
+                        
                 elif situacao == "REBAIXADO":
                     try:
                         indice_atual = CARGOS_LISTA.index(cargo_input)
@@ -309,7 +350,6 @@ with col2:
         st.metric("Total Horas Call (Última Rodada)", total_call)
         
         # 2. Métricas Individuais (Filtradas pelo usuário selecionado na col1)
-        # O 'usuario_selecionado' vem da col1
         if usuario_selecionado != '-- Novo Usuário --' and usuario_selecionado in df['Usuario'].values:
             
             dados_individuais = df[df['Usuario'] == usuario_selecionado].iloc[0]
