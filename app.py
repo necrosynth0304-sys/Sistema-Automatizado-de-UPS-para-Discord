@@ -160,14 +160,17 @@ def avaliar_situacao(cargo, semana_atual, pontos_acumulados):
 
 
 def limpar_campos_interface():
-    """Limpa os campos de entrada de Pontuação e Bônus após o processamento."""
-    # Zera os inputs de pontos
-    if 'pontos_base_input' in st.session_state:
-        st.session_state.pontos_base_input = 0.0
-    if 'bonus_input' in st.session_state:
-        st.session_state.bonus_input = 0.0
-    # A Semana, o Cargo e o Multiplicador são lidos do DataFrame na próxima execução
-    # e não precisam ser limpos, apenas os valores que o operador acabou de digitar.
+    """Remove as chaves de session_state ligadas aos widgets de input para forçar o valor padrão (0.0) na próxima execução."""
+    keys_to_delete = [
+        'pontos_base_input', 
+        'bonus_input', 
+        # Manter 'mult_ind_input' e 'semana_input_update' para que leiam o valor correto do DF recém-salvo
+        # 'cargo_select_update' também precisa ser mantido para ler o novo cargo
+    ]
+    
+    for key in keys_to_delete:
+        if key in st.session_state:
+            del st.session_state[key]
 
 
 # --- INTERFACE (STREAMLIT) ---
@@ -399,7 +402,7 @@ with col_upar:
             st.markdown("##### Pontuação Semanal")
             col_pts1, col_pts2 = st.columns(2)
             with col_pts1:
-                # O valor inicial é 0.0, mas após o primeiro registro (st.rerun) ele volta a 0.0
+                # O valor inicial padrão é 0.0. Ele lerá do st.session_state ou voltará ao padrão 0.0 após a limpeza.
                 pontos_base_input = st.number_input("Pontos Base (Chat)", min_value=0.0, value=st.session_state.get('pontos_base_input', 0.0), step=1.0, key='pontos_base_input')
             with col_pts2:
                 bonus_input = st.number_input("Bônus Extras", min_value=0.0, value=st.session_state.get('bonus_input', 0.0), step=1.0, key='bonus_input')
@@ -457,6 +460,7 @@ with col_upar:
             
             # 2. Determina se esta é a última semana do ciclo para acionar a avaliação
             is_ultima_semana = (semana_registrada_manual == total_semanas_ciclo_cargo)
+            multiplicador_up = 0 # Inicializa para garantir que a mensagem de sucesso funcione
 
             if is_ultima_semana:
                 # É o final do ciclo: faz a avaliação
@@ -488,7 +492,7 @@ with col_upar:
                         
                         # --- CÁLCULO DE UP MÚLTIPLO ---
                         # 1. Determina quantas vezes a meta UP foi atingida (mínimo 1, já que o status é UPADO)
-                        # O valor `pontos_acumulados_total` é usado para este cálculo.
+                        # Garante que a divisão de inteiros funcione
                         multiplicador_up = max(1, int(pontos_acumulados_total // meta_up))
                         
                         novo_indice = indice_atual + multiplicador_up
@@ -498,6 +502,7 @@ with col_upar:
                             novo_cargo_para_tabela = CARGOS_LISTA[novo_indice]
                         else:
                             novo_cargo_para_tabela = CARGOS_LISTA[-1] # Cargo Máximo
+                            multiplicador_up = len(CARGOS_LISTA) - 1 - indice_atual # Ajusta o multiplicador para a mensagem de sucesso
                         # --- FIM CÁLCULO DE UP MÚLTIPLO ---
                             
                     except ValueError:
@@ -505,6 +510,7 @@ with col_upar:
 
                         
                 elif situacao_final == "REBAIXADO":
+                    multiplicador_up = -1 # Indica rebaixamento na mensagem de sucesso
                     try:
                         indice_atual = CARGOS_LISTA.index(cargo_input)
                         if indice_atual > 0:
@@ -514,6 +520,8 @@ with col_upar:
                     except ValueError:
                         novo_cargo_para_tabela = 'f*ck'
 
+                elif situacao_final == "MANTEVE":
+                    multiplicador_up = 0 # Mantém o cargo
             
             # 4. Prepara os novos dados
             novo_dado = {
@@ -535,7 +543,14 @@ with col_upar:
             if salvar_dados(df, SHEET_NAME_PRINCIPAL):
                 limpar_campos_interface() # Limpa os campos de input de pontos/bônus
                 st.session_state.usuario_selecionado_id = usuario_input_upar # Persiste o usuário selecionado
-                st.success(f"Dados salvos! Situação: {situacao_para_tabela} | Novo Cargo: **{novo_cargo_para_tabela}** (Avançou {multiplicador_up} níveis)")
+                
+                msg_avanco = ""
+                if situacao_final == "UPADO":
+                    msg_avanco = f" (Avançou **{multiplicador_up}** níveis!)"
+                elif situacao_final == "REBAIXADO":
+                    msg_avanco = " (Rebaixou 1 nível)"
+                
+                st.success(f"Dados salvos! Situação: **{situacao_para_tabela}** | Novo Cargo: **{novo_cargo_para_tabela}**{msg_avanco}")
                 st.rerun()
         else:
             st.error("Selecione um membro válido antes de salvar.")
@@ -574,7 +589,7 @@ with col_ranking:
         st.subheader("Métricas Agregadas")
         
         total_pontos_sem = df[col_pontos_sem].sum()
-        total_bonus_sem = df[col_bonus_sem].sum()
+        total_bonus_sem = df[col_pontos_sem].sum()
         
         col_met1, col_met2 = st.columns(2)
         
