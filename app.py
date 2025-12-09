@@ -367,10 +367,12 @@ with col_upar:
                     
                     # Determina o valor sugerido para a semana de entrada
                     if dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
+                        # Se o ciclo anterior terminou, a próxima semana sugerida é 1
                         proxima_semana_sugerida = 1
-                        # Mensagem clara sobre o resultado do ciclo anterior - USANDO O CARGO DO DF (cargo_atual_dados)
+                        # Mensagem clara sobre o resultado do ciclo anterior - USANDO O CARGO SELECIONADO NA CAIXA
                         st.info(f"Ciclo finalizado ({dados_atuais[col_sit]}). Registre a **Semana 1** do cargo atual (**{cargo_input}**).")
                     else:
+                        # Se o ciclo está em andamento, sugere a próxima semana
                         proxima_semana_sugerida = semana_atual_dados
                         if semana_atual_dados > total_semanas_ciclo_cargo_selecionado:
                             st.warning(f"O ciclo do cargo **{cargo_input}** está incompleto. Sugestão: Semana {total_semanas_ciclo_cargo_selecionado}.")
@@ -485,7 +487,7 @@ with col_upar:
                         meta_up = METAS_PONTUACAO[cargo_input]['meta_up']
                         
                         # --- CORREÇÃO CÁLCULO DE UP MÚLTIPLO ---
-                        # Usa float para garantir precisão e então floor para pegar o número inteiro de metas
+                        # Usa float para garantir precisão e floor
                         multiplicador_up = max(1, int(pontos_acumulados_total / float(meta_up)))
                         
                         novo_indice = indice_atual + multiplicador_up
@@ -494,8 +496,9 @@ with col_upar:
                         if novo_indice < len(CARGOS_LISTA):
                             novo_cargo_para_tabela = CARGOS_LISTA[novo_indice]
                         else:
-                            novo_cargo_para_tabela = CARGOS_LISTA[-1] 
+                            # Se for o cargo máximo, calcula quantos níveis avançou para a mensagem de sucesso
                             multiplicador_up = len(CARGOS_LISTA) - 1 - indice_atual 
+                            novo_cargo_para_tabela = CARGOS_LISTA[-1] 
                         # --- FIM CORREÇÃO CÁLCULO DE UP MÚLTIPLO ---
                             
                     except ValueError:
@@ -507,10 +510,16 @@ with col_upar:
                         indice_atual = CARGOS_LISTA.index(cargo_input)
                         if indice_atual > 0:
                             novo_cargo_para_tabela = CARGOS_LISTA[indice_atual - 1]
+                            multiplicador_up = -1
                         else:
                             novo_cargo_para_tabela = 'f*ck' 
+                            multiplicador_up = 0
                     except ValueError:
                         novo_cargo_para_tabela = 'f*ck'
+                        multiplicador_up = 0
+                
+                elif situacao_final == "MANTEVE":
+                    multiplicador_up = 0 # Mantém o cargo
             
             # 4. Prepara os novos dados
             novo_dado = {
@@ -533,13 +542,9 @@ with col_upar:
                 limpar_campos_interface() # Limpa os campos de input de pontos/bônus
                 st.session_state.usuario_selecionado_id = usuario_input_upar # Persiste o usuário selecionado
                 
-                # --- CHAVE: FORÇAR O NOVO CARGO NO SELECTBOX APÓS O UP ---
-                if 'cargo_select_update' in st.session_state:
-                    try:
-                        novo_cargo_index = CARGOS_LISTA.index(novo_cargo_para_tabela)
-                        st.session_state['cargo_select_update'] = novo_cargo_para_tabela # Atualiza o valor do selectbox antes do rerun
-                    except ValueError:
-                        pass # Se o cargo for inválido, deixa o selectbox como está.
+                # --- CHAVE: REMOÇÃO DA ATUALIZAÇÃO DO SESSION STATE DO SELECTBOX ---
+                # A próxima execução lerá o novo valor diretamente do DataFrame.
+                # NENHUM CÓDIGO AQUI
                 
                 msg_avanco = ""
                 if situacao_final == "UPADO":
@@ -547,7 +552,7 @@ with col_upar:
                 elif situacao_final == "REBAIXADO":
                     msg_avanco = " (1 nível)"
                 
-                # --- CHAVE: MENSAGEM DE SUCESSO EXIBINDO O NOVO CARGO ---
+                # Mensagem de sucesso
                 st.success(f"Dados salvos! Situação: **{situacao_para_tabela}** | Próximo Cargo/Cargo Atual: **{novo_cargo_para_tabela}**{msg_avanco}")
                 st.rerun()
         else:
