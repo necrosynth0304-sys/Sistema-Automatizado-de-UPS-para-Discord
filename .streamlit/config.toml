@@ -1,0 +1,4 @@
+[general]
+# Define a versão do Python para evitar erros de ambiente na nuvem
+# Python 3.9 é uma versão estável e recomendada para deploy.
+python_version = "3.9"
