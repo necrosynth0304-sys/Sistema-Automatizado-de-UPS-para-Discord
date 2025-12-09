@@ -1,4 +1,3 @@
-```python
 import streamlit as st
 import pandas as pd
 import os
@@ -320,3 +319,4 @@ with col2:
             st.metric("Mensagens Registradas", dados_individuais['Ultima_Semana_Msgs'])
             st.metric("Horas em Call Registradas", dados_individuais['Ultima_Semana_Horas'])
 ```
+
