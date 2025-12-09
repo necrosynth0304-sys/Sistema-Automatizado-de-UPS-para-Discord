@@ -1,17 +1,3 @@
-Sim, com certeza\! Podemos adicionar uma **caixa visual e informativa** no `app_call.py` que lista as metas de UP e Manutenção de todos os cargos em ordem. Isso realmente melhora a clareza e a usabilidade.
-
-Vou implementar essa nova seção logo abaixo das abas de **"Adicionar Novo Membro"** e **"Upar"** no seu código.
-
-## 🛠️ Alterações em `app_call.py` (Adição da Tabela de Metas)
-
-Adicionei um novo bloco de código que:
-
-1.  Cria um `DataFrame` temporário a partir da lista `METAS_CALL`.
-2.  Formata esse `DataFrame` para exibição no Streamlit, usando `st.dataframe` dentro de um `st.expander` (para manter a interface limpa).
-
-Aqui está o código **completo e atualizado** de `app_call.py` com essa nova funcionalidade e todas as correções anteriores:
-
-```python
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -442,3 +428,4 @@ with col2:
 ```
 
 Basta substituir o conteúdo do seu `app_call.py` no GitHub por este código. A nova tabela de metas aparecerá na coluna da esquerda, logo acima das Ferramentas de Gestão.
+
