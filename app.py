@@ -1,33 +1,33 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import gspread 
-from google.oauth2.service_account import Credentials 
+import gspread
+from google.oauth2.service_account import Credentials
 
 # --- CONFIGURAÇÃO DAS REGRAS DO SISTEMA (PONTUAÇÃO E CICLOS) ---
 
 # NOVO MAPA DE PONTUAÇÃO (Cargos 1 a 13)
 # Baseado na conversão: Mensagens / 50 = Pontos (com ajustes de arredondamento)
 METAS_PONTUACAO = {
-    'f*ck':    {'ciclo': 1, 'meta_up': 15, 'meta_manter': 10},       # Cargo 1
-    '100%':    {'ciclo': 1, 'meta_up': 20, 'meta_manter': 15},       # Cargo 2
-    'woo':     {'ciclo': 2, 'meta_up': 70, 'meta_manter': 60},       # Cargo 3
-    'sex':     {'ciclo': 2, 'meta_up': 100, 'meta_manter': 80},      # Cargo 4
-    '?':       {'ciclo': 3, 'meta_up': 195, 'meta_manter': 150},     # Cargo 5
-    '!':       {'ciclo': 3, 'meta_up': 336, 'meta_manter': 260},     # Cargo 6
-    'aura':    {'ciclo': 4, 'meta_up': 440, 'meta_manter': 336},     # Cargo 7
-    'all wild':{'ciclo': 4, 'meta_up': 580, 'meta_manter': 400},     # Cargo 8
-    'cute':    {'ciclo': 4, 'meta_up': 681, 'meta_manter': 581},     # Cargo 9
-    '$':       {'ciclo': 4, 'meta_up': 801, 'meta_manter': 740},     # Cargo 10
-    'void':    {'ciclo': 5, 'meta_up': 971, 'meta_manter': 880},     # Cargo 11 (Progressão)
-    'dawn':    {'ciclo': 5, 'meta_up': 1141, 'meta_manter': 1025},   # Cargo 12 (Progressão)
-    'upper':   {'ciclo': 5, 'meta_up': 1321, 'meta_manter': 1180},   # Cargo 13 (Progressão)
+    'f*ck':      {'ciclo': 1, 'meta_up': 15, 'meta_manter': 10},      # Cargo 1
+    '100%':      {'ciclo': 1, 'meta_up': 20, 'meta_manter': 15},      # Cargo 2
+    'woo':       {'ciclo': 2, 'meta_up': 70, 'meta_manter': 60},      # Cargo 3
+    'sex':       {'ciclo': 2, 'meta_up': 100, 'meta_manter': 80},     # Cargo 4
+    '?':         {'ciclo': 3, 'meta_up': 195, 'meta_manter': 150},    # Cargo 5
+    '!':         {'ciclo': 3, 'meta_up': 336, 'meta_manter': 260},    # Cargo 6
+    'aura':      {'ciclo': 4, 'meta_up': 440, 'meta_manter': 336},    # Cargo 7
+    'all wild':  {'ciclo': 4, 'meta_up': 580, 'meta_manter': 400},    # Cargo 8
+    'cute':      {'ciclo': 4, 'meta_up': 681, 'meta_manter': 581},    # Cargo 9
+    '$':         {'ciclo': 4, 'meta_up': 801, 'meta_manter': 740},    # Cargo 10
+    'void':      {'ciclo': 5, 'meta_up': 971, 'meta_manter': 880},    # Cargo 11 (Progressão)
+    'dawn':      {'ciclo': 5, 'meta_up': 1141, 'meta_manter': 1025},   # Cargo 12 (Progressão)
+    'upper':     {'ciclo': 5, 'meta_up': 1321, 'meta_manter': 1180},   # Cargo 13 (Progressão)
 }
 
 CARGOS_LISTA = list(METAS_PONTUACAO.keys())
 
 # --- CONSTANTES DE CONVERSÃO ---
-MENSAGENS_POR_PONTO = 50 
+MENSAGENS_POR_PONTO = 50
 DIAS_POR_SEMANA = 7
 
 # --- NOME DA ABA PRINCIPAL ---
@@ -36,7 +36,7 @@ SHEET_NAME_PRINCIPAL = "dados sistema"
 
 # --- FUNÇÕES DE CONEXÃO E LÓGICA ---
 
-@st.cache_resource(ttl=3600) 
+@st.cache_resource(ttl=3600)
 def get_gsheets_client():
     """Autoriza o cliente gspread."""
     try:
@@ -52,12 +52,13 @@ gc = get_gsheets_client()
 
 # --- CONSTANTES DE COLUNAS (DataFrame) ---
 COLUNAS_PADRAO = [
-    'usuario', 'cargo', 'situação', 'Semana_Atual', 
-    'Pontos_Acumulados_Ciclo', 'Pontos_Semana', 'Bonus_Semana', 
+    'usuario', 'user_id', 'cargo', 'situação', 'Semana_Atual',
+    'Pontos_Acumulados_Ciclo', 'Pontos_Semana', 'Bonus_Semana',
     'Multiplicador_Individual', 'Data_Ultima_Atualizacao', 'Pontos_Total_Final'
 ]
 
 col_usuario = 'usuario'
+col_user_id = 'user_id' # NOVA COLUNA: ID do Usuário
 col_cargo = 'cargo'
 col_sit = 'situação'
 col_sem = 'Semana_Atual'
@@ -68,7 +69,7 @@ col_mult_ind = 'Multiplicador_Individual'
 col_pontos_final = 'Pontos_Total_Final'
 
 
-@st.cache_data(ttl=5) 
+@st.cache_data(ttl=5)
 def carregar_dados(sheet_name):
     """Lê os dados da planilha Google."""
     if gc is None:
@@ -84,7 +85,13 @@ def carregar_dados(sheet_name):
         worksheet = sh.worksheet(sheet_name)
         df = pd.DataFrame(worksheet.get_all_records())
         
+        # GARANTE que 'user_id' exista, preenchendo com 'N/A' se for um DF antigo
+        if col_user_id not in df.columns:
+            # Insere a coluna logo após 'usuario'
+            df.insert(df.columns.get_loc(col_usuario) + 1, col_user_id, 'N/A') 
+        
         if df.empty or not all(col in df.columns for col in COLUNAS_PADRAO):
+            # Recria o DF se estiver vazio ou com colunas erradas (incluindo user_id)
             df = pd.DataFrame(columns=COLUNAS_PADRAO)
         
         # Conversão de tipos para colunas numéricas
@@ -111,7 +118,7 @@ def salvar_dados(df, sheet_name):
         sh = gc.open_by_url(SPREADSHEET_URL)
         worksheet = sh.worksheet(sheet_name)
         
-        # Garante a ordem e tipos
+        # Garante a ordem e tipos (usa COLUNAS_PADRAO para forçar a ordem correta)
         df_to_save = df[COLUNAS_PADRAO].astype(str)
 
         data = [df_to_save.columns.values.tolist()] + df_to_save.values.tolist()
@@ -216,6 +223,9 @@ with col_ferramentas:
         st.markdown("##### Adicionar Novo Membro")
         
         usuario_input_add = st.text_input("Nome do Novo Usuário", key='usuario_input_add')
+        # NOVO CAMPO: ID do Usuário
+        user_id_input_add = st.text_input("ID do Usuário (Opcional)", key='user_id_input_add', value='N/A')
+        
         cargo_input_add = st.selectbox("Cargo Inicial", CARGOS_LISTA, index=cargo_inicial_default, key='cargo_select_add')
         
         if st.button("Adicionar Membro", type="primary", use_container_width=True):
@@ -228,6 +238,7 @@ with col_ferramentas:
                     
                     novo_dado_add = {
                         col_usuario: usuario_input_add, 
+                        col_user_id: user_id_input_add, # Salva o ID
                         col_cargo: cargo_input_add, 
                         col_sit: f"Em andamento (1/{total_ciclo_add})",
                         col_sem: 1,
@@ -356,6 +367,8 @@ with col_upar:
             
             dados_atuais = df[df[col_usuario] == usuario_selecionado].iloc[0]
             usuario_input_upar = dados_atuais[col_usuario]
+            # LÊ O ID DO USUÁRIO
+            user_id_atual = dados_atuais.get(col_user_id, 'N/A')
             
             # --- CHAVE: LER O CARGO MAIS ATUALIZADO DO DATAFRAME ---
             cargo_atual_dados = dados_atuais[col_cargo] 
@@ -373,6 +386,9 @@ with col_upar:
                     cargo_index_default = CARGOS_LISTA.index(cargo_atual_dados)
                     
                     st.markdown(f"**Membro:** `{usuario_input_upar}` | **Cargo Atual no DF:** `{cargo_atual_dados}`")
+                    # EXIBE O ID DO USUÁRIO
+                    if user_id_atual != 'N/A':
+                        st.markdown(f"**ID:** `{user_id_atual}`") 
                     
                     # 1. CARGO ATUAL
                     cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=cargo_index_default, key='cargo_select_update')
@@ -474,6 +490,9 @@ with col_upar:
             
             pontos_acumulados_anteriores = dados_atuais[col_pontos_acum]
             pontos_total_final_anterior = dados_atuais[col_pontos_final]
+            # LÊ O user_id A SER SALVO
+            user_id_salvar = dados_atuais.get(col_user_id, 'N/A')
+            
             total_semanas_ciclo_cargo = METAS_PONTUACAO.get(cargo_input, {'ciclo': 1})['ciclo']
 
             # 1. Cálculo da Pontuação da Semana 
@@ -554,6 +573,7 @@ with col_upar:
             # 4. Prepara os novos dados
             novo_dado = {
                 col_usuario: usuario_input_upar, 
+                col_user_id: user_id_salvar, # Salva o ID
                 col_cargo: novo_cargo_para_tabela, 
                 col_sit: situacao_para_tabela, 
                 col_sem: nova_semana_para_tabela, 
@@ -595,7 +615,7 @@ with col_ranking:
     
     if not df.empty: 
         df_display = df.sort_values(by=[col_pontos_final, col_cargo], ascending=[False, True])
-                                    
+                                        
         st.dataframe(
             df_display.style.map(
                 lambda x: 'background-color: #e6ffed; color: green' if 'UPADO' in str(x) else 
@@ -605,7 +625,8 @@ with col_ranking:
             ),
             use_container_width=True,
             height=600,
-            column_order=[col_usuario, col_cargo, col_sit, col_pontos_acum, col_pontos_sem, col_bonus_sem, col_mult_ind, 'Data_Ultima_Atualizacao']
+            # INCLUINDO col_user_id na visualização
+            column_order=[col_usuario, col_user_id, col_cargo, col_sit, col_pontos_acum, col_pontos_sem, col_bonus_sem, col_mult_ind, 'Data_Ultima_Atualizacao']
         )
     else:
         st.warning("Nenhum membro cadastrado. Adicione um na coluna ao lado.")
@@ -616,7 +637,7 @@ with col_ranking:
 
     if not df.empty:
         total_pontos_sem = df[col_pontos_sem].sum()
-        total_bonus_sem = df[col_pontos_sem].sum()
+        total_bonus_sem = df[col_bonus_sem].sum() # Corrigido para somar o bônus, não os pontos semanais novamente
         
         col_met1, col_met2 = st.columns(2)
         
