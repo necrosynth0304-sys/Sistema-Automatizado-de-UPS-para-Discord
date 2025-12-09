@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import os 
+import os
 import gspread 
 from google.oauth2.service_account import Credentials 
 
@@ -442,3 +442,4 @@ with col2:
         total_call = df[col_horas_semana].sum()
         
         st.metric("Total Horas Call (Última Rodada)", f"{total_call:.1f}")
+
