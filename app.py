@@ -103,12 +103,12 @@ def carregar_dados():
 
 
 def salvar_dados(df):
-    """Sobrescreve a aba da planilha Google com o novo DataFrame. Implementação de Debug na UI."""
+    """Sobrescreve a aba da planilha Google com o novo DataFrame."""
     if gc is None:
         st.error("Não foi possível salvar os dados: Conexão Sheets inativa.")
-        return
+        return False # Retorna False em caso de falha inicial
 
-    st.info("Tentando salvar dados na planilha...") # Linha de Debug na UI
+    st.info("Tentando salvar dados na planilha...")
 
     try:
         SPREADSHEET_URL = st.secrets["gsheets_config"]["spreadsheet_url"]
@@ -121,17 +121,20 @@ def salvar_dados(df):
         data = [df_to_save.columns.values.tolist()] + df_to_save.values.tolist()
         
         worksheet.clear()
-        worksheet.update('A1', values=data)
+        
+        # CORREÇÃO CRÍTICA: Uso de 'range_name' para evitar TypeError
+        worksheet.update(range_name='A1', values=data)
         
         st.cache_data.clear() 
         
+        return True # Retorna True em caso de sucesso
+        
     except Exception as e:
-        # --- NOVO CÓDIGO DE DEBUG NA INTERFACE ---
         st.error("ERRO CRÍTICO: Falha na Escrita ou Permissão Negada (403)!")
         st.exception(e) # Exibe o traceback completo para diagnóstico
-        return 
-        # ----------------------------------------
-        
+        return False # Retorna False em caso de erro na escrita
+
+
 # --- FUNÇÕES DE LÓGICA (Inalteradas) ---
 def calcular_pontos_semana(msgs, horas, rush_hour, desafio_tipo, participou_desafio):
     pts_msg = msgs / 50
@@ -351,9 +354,16 @@ with col1:
             else:
                 df = pd.concat([df, pd.DataFrame([novo_dado])], ignore_index=True)
 
-            salvar_dados(df) 
+            # Chama a função de escrita e verifica o sucesso
+            escrita_foi_bem_sucedida = salvar_dados(df)
             
-            st.success(f"Dados salvos! Situação: {situacao} | Próximo Cargo: **{novo_cargo}**")
+            if escrita_foi_bem_sucedida:
+                st.success(f"Dados salvos no Drive! Situação: {situacao} | Próximo Cargo: **{novo_cargo}**")
+                st.rerun() # Recarrega a página para exibir os dados atualizados
+            else:
+                # A mensagem de erro já é exibida por salvar_dados()
+                pass 
+
         else:
             st.error("Selecione ou digite um nome de usuário válido.")
     
@@ -457,4 +467,3 @@ with col2:
             st.subheader(f"Última Atividade de {usuario_selecionado}")
             st.metric("Mensagens Registradas", dados_individuais[col_msgs])
             st.metric("Horas em Call Registradas", dados_individuais[col_horas])
-
