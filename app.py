@@ -384,24 +384,17 @@ with col_upar:
                     
                     st.markdown(f"**Membro Selecionado:** `{usuario_input_upar}`") 
                     
-                    # 🌟 AQUI: NOVO BLOCO PARA VISUALIZAR E EDITAR O ID DO USUÁRIO 🌟
-                    with st.container(border=True):
-                         user_id_input_update = st.text_input(
-                             "ID do Usuário", 
-                             key='user_id_input_update', 
-                             value=user_id_atual, # Valor atual é o lido do DF
-                             help="Preencha o ID do usuário. Se for 'N/A' e você preencher, ele será salvo."
-                         )
-                         
-                         if user_id_atual != 'N/A' and st.session_state.user_id_input_update == user_id_atual:
-                             st.caption(f"ID atual: **{user_id_atual}**")
-                         elif user_id_atual != st.session_state.user_id_input_update:
-                             st.warning(f"O ID será atualizado de `{user_id_atual}` para `{st.session_state.user_id_input_update}` após salvar a semana.")
-                         else:
-                             st.caption("ID não preenchido.")
-                             
-                    st.markdown("---") # Separador visual
-
+                    # 🚀 AQUI: EXIBIÇÃO APENAS DE VISUALIZAÇÃO E DESTAQUE (Cor Verde) 
+                    # Usa HTML para aplicar um fundo verde claro (similar ao st.success)
+                    st.markdown(
+                        f"""
+                        <div style="background-color: #e6ffed; padding: 5px; border-radius: 5px; margin-bottom: 10px;">
+                            <strong>ID do Usuário:</strong> <code>{user_id_atual}</code>
+                        </div>
+                        """, 
+                        unsafe_allow_html=True
+                    )
+                    
                     # 1. CARGO ATUAL
                     cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=cargo_index_default, key='cargo_select_update')
                     
@@ -490,7 +483,8 @@ with col_upar:
             
             # Captura os dados de entrada
             mensagens_input = st.session_state.mensagens_input
-            user_id_salvar = st.session_state.user_id_input_update # CAPTURA O ID EDITADO
+            # Usamos o ID que JÁ ESTÁ NO DATAFRAME, pois a edição foi removida
+            user_id_salvar = dados_atuais.get(col_user_id, 'N/A')
             
             # *** CÁLCULO CHAVE: CONVERTE MENSAGENS EM PONTOS BASE ***
             # Mensagens / 50 = Pontos Base
@@ -584,7 +578,7 @@ with col_upar:
             # 4. Prepara os novos dados
             novo_dado = {
                 col_usuario: usuario_input_upar, 
-                col_user_id: user_id_salvar, # Salva o ID (pode ser o valor atualizado)
+                col_user_id: user_id_salvar, # Salva o ID (o mesmo lido inicialmente)
                 col_cargo: novo_cargo_para_tabela, 
                 col_sit: situacao_para_tabela, 
                 col_sem: nova_semana_para_tabela, 
