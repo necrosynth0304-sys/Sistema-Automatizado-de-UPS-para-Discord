@@ -13,7 +13,7 @@ except ImportError:
     Credentials = None
 
 
-# --- CONFIGURAÇÃO DAS REGRAS DO SISTEMA ---
+# --- CONFIGURAÇÃO DAS REGRAS DO SISTEMA (MANTIDA) ---
 
 METAS = {
     'f*ck':    {'ciclo': 1, 'meta_pts': 20,   'manter': 13}, 
@@ -34,8 +34,8 @@ METAS = {
 CARGOS_LISTA = list(METAS.keys())
 OPCOES_DESAFIO = ["Nenhum", "Engajamento (2.0x Call)", "Mensagens (1.5x)", "Presença (1.5x)"]
 
-# --- CONFIGURAÇÃO DA CONEXÃO GOOGLE SHEETS ---
-
+# --- FUNÇÕES DE CONEXÃO E LÓGICA (MANTIDAS) ---
+# ... (gc, COLUNAS_PADRAO, col_usuario, etc., e as funções carregar_dados, salvar_dados, calcular_pontos_semana, avaliar_situacao permanecem as mesmas)
 @st.cache_resource(ttl=3600) 
 def get_gsheets_client():
     """Autoriza o cliente gspread usando as credenciais do Streamlit secrets."""
@@ -51,8 +51,6 @@ def get_gsheets_client():
         return None
 
 gc = get_gsheets_client()
-
-# --- FUNÇÕES DE CARREGAMENTO E SALVAMENTO DE DADOS ---
 
 COLUNAS_PADRAO = [
     'usuario', 'cargo', 'situação', 'Semana_Atual', 
@@ -122,7 +120,6 @@ def salvar_dados(df):
         
         worksheet.clear()
         
-        # CORREÇÃO CRÍTICA: Uso de 'range_name' para evitar TypeError
         worksheet.update(range_name='A1', values=data)
         
         st.cache_data.clear() 
@@ -135,7 +132,6 @@ def salvar_dados(df):
         return False
 
 
-# --- FUNÇÕES DE LÓGICA (Inalteradas) ---
 def calcular_pontos_semana(msgs, horas, rush_hour, desafio_tipo, participou_desafio):
     pts_msg = msgs / 50
     pts_voz = horas * 2
@@ -176,7 +172,6 @@ def avaliar_situacao(cargo, pts_acumulados, semana_atual):
         situacao = f"Em andamento ({semana_atual}/{ciclo_max})"
         
     return situacao, fator_multiplicacao
-
 # --- INTERFACE (STREAMLIT) ---
 
 st.set_page_config(page_title="Sistema de Ups EXY", layout="wide")
@@ -192,22 +187,29 @@ tipo_desafio = st.sidebar.selectbox("Desafio Semanal Ativo", OPCOES_DESAFIO)
 # --- ABA 1: ADICIONAR / EDITAR USUÁRIO ---
 col1, col2 = st.columns([1, 2])
 
+# Variável para armazenar o clique no botão
+if 'salvar_button_clicked' not in st.session_state:
+    st.session_state.salvar_button_clicked = False
+
 with col1:
     st.subheader("Entrada de Dados Semanais")
     
-    # ----------------------------------------------------
-    # --- IMPLEMENTAÇÃO DE ABAS PARA SEPARAR FUNCIONALIDADES ---
-    # ----------------------------------------------------
     tab_update, tab_add = st.tabs(["⬆️ Atualizar Semana / Upar", "➕ Adicionar Novo Membro"])
+
+    # --- Variáveis de estado iniciais ---
+    usuario_input = None
+    
+    if CARGOS_LISTA:
+        cargo_inicial_default = CARGOS_LISTA.index('f*ck')
+    else:
+        cargo_inicial_default = 0
+
 
     # === ABA 1: ATUALIZAR/UPAR MEMBRO EXISTENTE ===
     with tab_update:
-        if CARGOS_LISTA:
-            cargo_inicial_default = CARGOS_LISTA.index('f*ck')
-        else:
-            cargo_inicial_default = 0
-            
+        
         opcoes_usuarios = ['-- Selecione o Membro --'] + sorted(df[col_usuario].unique().tolist()) 
+        # Usando um key exclusivo para a aba de update
         usuario_selecionado = st.selectbox("**Membro para Atualizar/Upar**", opcoes_usuarios, key='select_user_update')
         
         if usuario_selecionado != '-- Selecione o Membro --' and not df.empty and usuario_selecionado in df[col_usuario].values:
@@ -224,6 +226,7 @@ with col1:
                 cargo_index_default = CARGOS_LISTA.index(cargo_atual_dados)
                 st.info(f"Membro selecionado: **{usuario_input}** | Ciclo atual: **{cargo_atual_dados}** ({semana_atual}/{ciclo_max} semanas)")
                 
+                # Lógica para determinar a próxima semana (MANTIDA)
                 if dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
                     proxima_semana = 1
                     pts_acumulados_anteriores = 0.0 
@@ -252,41 +255,29 @@ with col1:
             check_desafio = st.checkbox("Participou Desafio Semanal?", key='desafio_check_update')
             bonus_fixo_input = st.number_input("Bônus Fixo ÚNICO (Streak, Pts Extras)", value=0.0, key='bonus_input_update')
             
+            # O botão de salvar será capturado diretamente
+            if st.button("Salvar / Atualizar Semana", type="primary", key="save_update_button"):
+                st.session_state.salvar_button_clicked = True
             
-            # ----------------------------------------------------
-            # --- BOTÃO DE SALVAR (LÓGICA UNIFICADA) ---
-            # ----------------------------------------------------
-            if st.button("Salvar / Atualizar Semana", type="primary"):
-                # A lógica de cálculo e atualização é movida para a função principal (abaixo)
-                pass # A lógica de processamento será chamada fora da aba
-                
         else:
             st.info("Selecione um membro acima para registrar a pontuação da semana e processar o UP.")
-            usuario_input = None # Define como None para não processar
+            usuario_input = None
             
     # === ABA 2: ADICIONAR NOVO MEMBRO ===
     with tab_add:
-        st.subheader("Adicionar um novo membro (Cargo F*ck)")
+        # CORREÇÃO: Remove a menção ao cargo f*ck do título
+        st.subheader("Adicionar um Novo Membro") 
         
         usuario_input_add = st.text_input("Nome do Novo Usuário", key='usuario_input_add')
         cargo_input_add = st.selectbox("Cargo Inicial", CARGOS_LISTA, index=cargo_inicial_default, key='cargo_select_add')
         
-        # Para novos usuários, os inputs de pontuação são zerados
-        semana_input_add = 1
-        msgs_input_add = 0
-        horas_input_add = 0.0
-        pts_acumulados_anteriores_add = 0.0
-        check_rush_add = False
-        check_desafio_add = False
-        bonus_fixo_input_add = 0.0
-        
         if st.button("Adicionar Membro", type="secondary"):
             if usuario_input_add:
-                # Se o usuário já existe, alerta e não salva.
+                # Verifica se o usuário já existe
                 if usuario_input_add in df[col_usuario].values:
                     st.error(f"O membro '{usuario_input_add}' já existe. Use a aba 'Atualizar Semana / Upar' para ele.")
                 else:
-                    # Prepara os novos dados na ORDEM CORRETA
+                    # Prepara os novos dados
                     novo_dado_add = {
                         col_usuario: usuario_input_add, 
                         col_cargo: cargo_input_add, 
@@ -305,37 +296,34 @@ with col1:
                     escrita_foi_bem_sucedida = salvar_dados(df)
                     
                     if escrita_foi_bem_sucedida:
-                        st.success(f"Membro **{usuario_input_add}** adicionado com sucesso! Agora, use a aba 'Atualizar Semana / Upar' para registrar a primeira semana.")
+                        st.success(f"Membro **{usuario_input_add}** adicionado com sucesso! Use a aba 'Atualizar Semana / Upar' para registrar a primeira semana.")
                         st.rerun()
                     else:
-                         # A mensagem de erro já é exibida por salvar_dados()
                          pass
             else:
                  st.error("Digite o nome do novo membro.")
 
 
     # ----------------------------------------------------
-    # --- LÓGICA DE PROCESSAMENTO (PARA ABA DE ATUALIZAÇÃO) ---
-    # Esta lógica só será executada se o botão na ABA 1 for clicado
+    # --- LÓGICA DE PROCESSAMENTO (FORA DAS ABAS) ---
+    # Usa a flag de session_state para processar o clique
     # ----------------------------------------------------
     
-    # Esta é a variável de controle da ABA 1
-    if usuario_selecionado != '-- Selecione o Membro --' and usuario_input is not None and st.session_state.get('semana_input_update') is not None:
+    if st.session_state.salvar_button_clicked:
+        st.session_state.salvar_button_clicked = False # Resetar a flag
         
-        # Recaptura os dados da aba de atualização
-        usuario_input = dados_atuais[col_usuario] # Membro existente
-        cargo_input = st.session_state.cargo_select_update
-        semana_input = st.session_state.semana_input_update
-        msgs_input = st.session_state.msgs_input_update
-        horas_input = st.session_state.horas_input_update
-        check_rush = st.session_state.rush_check_update
-        check_desafio = st.session_state.desafio_check_update
-        bonus_fixo_input = st.session_state.bonus_input_update
-        
-        # A lógica de cálculo e salvamento é a mesma
-        if st.session_state['Salvar / Atualizar Semana']: # Detecta o clique no botão
+        if usuario_input is not None:
+            # Recaptura os dados da aba de atualização usando session_state
+            usuario_input = dados_atuais[col_usuario]
+            cargo_input = st.session_state.cargo_select_update
+            semana_input = st.session_state.semana_input_update
+            msgs_input = st.session_state.msgs_input_update
+            horas_input = st.session_state.horas_input_update
+            check_rush = st.session_state.rush_check_update
+            check_desafio = st.session_state.desafio_check_update
+            bonus_fixo_input = st.session_state.bonus_input_update
             
-            # --- Lógica de Cálculo e Avaliação ---
+            # --- Lógica de Cálculo e Avaliação (MANTIDA) ---
             pts_semana_multi = calcular_pontos_semana(msgs_input, horas_input, check_rush, tipo_desafio, check_desafio)
             
             if cargo_input not in METAS:
@@ -354,15 +342,15 @@ with col1:
 
             novo_cargo = cargo_input 
             
+            # Lógica de UP MÚLTIPLO (MANTIDA)
             if situacao in ["UPADO", "REBAIXADO", "MANTEVE"]:
                 nova_semana = 1
                 novo_pts_acumulados = 0.0
                 
-                # ... (Lógica de UP MÚLTIPLO idêntica à anterior)
                 if situacao == "UPADO":
                     indice_atual = CARGOS_LISTA.index(cargo_input)
                     niveis_a_avancar = 1 
-                    
+                    # ... (lógica de up múltiplo)
                     if cargo_input == 'f*ck':
                         if fator_multiplicacao >= 3:
                             indice_limite = CARGOS_LISTA.index('sex')
@@ -370,7 +358,6 @@ with col1:
                         elif fator_multiplicacao == 2:
                             indice_limite = CARGOS_LISTA.index('woo')
                             niveis_a_avancar = indice_limite - indice_atual
-                        
                     elif cargo_input == '100%':
                         if fator_multiplicacao >= 3:
                             indice_limite = CARGOS_LISTA.index('?')
@@ -423,21 +410,21 @@ with col1:
             # Salva no DataFrame (substitui a linha antiga)
             df.loc[df[df[col_usuario] == usuario_input].index[0]] = novo_dado
 
-            # Chama a função de escrita e verifica o sucesso
             escrita_foi_bem_sucedida = salvar_dados(df)
             
             if escrita_foi_bem_sucedida:
                 st.success(f"Dados salvos no Drive! Situação: {situacao} | Próximo Cargo: **{novo_cargo}**")
-                st.rerun() # Recarrega a página para exibir os dados atualizados
+                st.rerun()
             else:
-                # A mensagem de erro já é exibida por salvar_dados()
-                pass 
-        
+                pass
+        else:
+            st.error("Selecione um membro válido na aba 'Atualizar Semana / Upar' antes de salvar.")
 
 
     st.markdown("---")
 
-    # --- SEÇÃO: REMOÇÃO DE USUÁRIOS POR LISTA ---
+    # --- SEÇÃO: REMOÇÃO DE USUÁRIOS POR LISTA e RESET GLOBAL (MANTIDA) ---
+    
     st.subheader("Remover Usuários")
     
     if 'confirm_reset' not in st.session_state:
@@ -461,7 +448,6 @@ with col1:
 
     st.markdown("---")
 
-    # --- RESET TOTAL ---
     st.subheader("Reset Global")
     
     if st.button("Resetar Tabela INTEIRA"):
@@ -484,7 +470,7 @@ with col1:
                 st.rerun()
 
 
-# --- ABA 2: VISUALIZAÇÃO DA TABELA ---
+# --- ABA 2: VISUALIZAÇÃO DA TABELA (COLUNA 2) ---
 with col2:
     st.subheader("Tabela de Acompanhamento")
     
@@ -493,7 +479,8 @@ with col2:
     
     st.info(f"Total de Usuários: **{len(df)}** | Próxima Ação: Atualizar Semana e Salvar.")
     
-    if not df.empty:
+    # CORREÇÃO: A tabela principal é sempre exibida se o DF não estiver vazio
+    if not df.empty: 
         df_display = df.sort_values(by=[col_pts_acum, col_cargo], 
                                     ascending=[False, True])
                                     
@@ -512,7 +499,7 @@ with col2:
 
     st.markdown("---")
 
-    ## Nova Seção: Métricas de Atividade
+    ## Nova Seção: Métricas de Atividade (MANTIDA)
     
     if not df.empty:
         st.subheader("Atividade Agregada do Grupo")
@@ -526,12 +513,14 @@ with col2:
         st.metric("Total Mensagens (Última Rodada)", total_msgs)
         st.metric("Total Horas Call (Última Rodada)", total_call)
         
-        # 2. Métricas Individuais
-        if usuario_selecionado != '-- Selecione o Membro --' and usuario_selecionado in df[col_usuario].values:
+        # 2. Métricas Individuais (Agora referenciando a seleção correta, se houver)
+        usuario_selecionado_display = st.session_state.get('select_user_update')
+        
+        if usuario_selecionado_display and usuario_selecionado_display != '-- Selecione o Membro --' and usuario_selecionado_display in df[col_usuario].values:
             
-            dados_individuais = df[df[col_usuario] == usuario_selecionado].iloc[0]
+            dados_individuais = df[df[col_usuario] == usuario_selecionado_display].iloc[0]
             
             st.markdown("---")
-            st.subheader(f"Última Atividade de {usuario_selecionado}")
+            st.subheader(f"Última Atividade de {usuario_selecionado_display}")
             st.metric("Mensagens Registradas", dados_individuais[col_msgs])
             st.metric("Horas em Call Registradas", dados_individuais[col_horas])
