@@ -178,18 +178,19 @@ def avaliar_situacao(cargo, pts_acumulados, semana_atual):
 
 # --- INTERFACE (STREAMLIT) ---
 
-st.set_page_config(page_title="🔥 Sistema de Ups EXY", layout="wide")
-st.title("🔥 Sistema de Ups EXY")
+# REMOVIDO EMOJIS DO PAGE_TITLE
+st.set_page_config(page_title="Sistema de Ups EXY", layout="wide")
+st.title("Sistema de Ups EXY")
 
 df = carregar_dados()
 
 # Sidebar - Configurações Globais da Semana
-st.sidebar.header("⚙️ Configurações da Semana")
+st.sidebar.header("Configurações da Semana")
 weekend_ativo = st.sidebar.checkbox("Ativar Weekend (1.2x)?", value=False)
 tipo_desafio = st.sidebar.selectbox("Desafio Semanal Ativo", OPCOES_DESAFIO)
 
 # --- COLUNAS PRINCIPAIS ---
-col1, col2 = st.columns([1, 2])
+col1, col2 = st.columns([1, 2]) # Seções empilham automaticamente no mobile
 
 # Variável de estado para o botão salvar
 if 'salvar_button_clicked' not in st.session_state:
@@ -198,7 +199,8 @@ if 'salvar_button_clicked' not in st.session_state:
 with col1:
     st.subheader("Entrada de Dados e Gestão")
     
-    tab_update, tab_add = st.tabs(["⬆️ Atualizar Semana / Upar", "➕ Adicionar Novo Membro"])
+    # REMOVIDO EMOJIS DAS ABAS
+    tab_update, tab_add = st.tabs(["Atualizar Semana / Upar", "Adicionar Novo Membro"])
 
     # --- Variáveis de estado iniciais ---
     usuario_input = None
@@ -235,7 +237,7 @@ with col1:
                     if dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
                         proxima_semana = 1
                         pts_acumulados_anteriores = 0.0 
-                        st.info("⚠️ Ciclo finalizado. O próximo registro será na **Semana 1** do novo cargo.")
+                        st.info("Ciclo finalizado. O próximo registro será na **Semana 1** do novo cargo.")
                     else:
                         proxima_semana = semana_atual + 1
                         if proxima_semana > ciclo_max: proxima_semana = ciclo_max
@@ -248,27 +250,27 @@ with col1:
             # --- Fim Bloco de Informação do Membro ---
             
             # --- Entradas de Dados ---
-            st.divider() # Divisor visual
+            st.divider()
 
-            # Organização dos inputs
+            # Usando colunas para entradas de números (empilham no mobile)
             col_semana, col_cargo_select = st.columns(2)
             with col_semana:
-                semana_input = st.number_input("Semana do Ciclo (Máx: {ciclo_max})", 
+                semana_input = st.number_input(f"Semana do Ciclo (Máx: {ciclo_max})", 
                                             min_value=1, max_value=ciclo_max, value=semana_input_value, 
                                             key='semana_input_update')
             with col_cargo_select:
                 cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=cargo_index_default, key='cargo_select_update')
 
-            st.markdown("##### 📊 Dados de Atividade Semanal")
+            st.markdown("##### Dados de Atividade Semanal")
             col_msgs, col_horas = st.columns(2)
             with col_msgs:
                 msgs_input = st.number_input("Mensagens", min_value=0, value=0, key='msgs_input_update')
             with col_horas:
                 horas_input = st.number_input("Horas em Call", min_value=0.0, value=0.0, step=0.5, key='horas_input_update')
             
-            st.divider() # Divisor visual
+            st.divider()
 
-            st.markdown("##### 🚀 Bônus e Multiplicadores")
+            st.markdown("##### Bônus e Multiplicadores")
             check_rush = st.checkbox("Participou Rush Hour? (+0.5x)", key='rush_check_update')
             check_desafio = st.checkbox("Participou Desafio Semanal? (x1.5/x2.0)", key='desafio_check_update')
             bonus_fixo_input = st.number_input("Bônus Fixo (Pontos Extras)", value=0.0, key='bonus_input_update')
@@ -291,11 +293,13 @@ with col1:
         cargo_input_add = st.selectbox("Cargo Inicial", CARGOS_LISTA, index=cargo_inicial_default, key='cargo_select_add')
         
         st.markdown("---")
-        if st.button("✅ Adicionar Membro", type="secondary", use_container_width=True):
+        # REMOVIDO EMOJIS DO BOTÃO
+        if st.button("Adicionar Membro", type="secondary", use_container_width=True):
             if usuario_input_add:
                 # Verifica se o usuário já existe
                 if usuario_input_add in df[col_usuario].values:
-                    st.error(f"❌ O membro '{usuario_input_add}' já existe. Use a aba 'Atualizar Semana / Upar'.")
+                    # REMOVIDO EMOJI
+                    st.error(f"O membro '{usuario_input_add}' já existe. Use a aba 'Atualizar Semana / Upar'.")
                 else:
                     # Prepara os novos dados
                     novo_dado_add = {
@@ -316,7 +320,8 @@ with col1:
                     escrita_foi_bem_sucedida = salvar_dados(df)
                     
                     if escrita_foi_bem_sucedida:
-                        st.success(f"🎉 Membro **{usuario_input_add}** adicionado! Use a aba 'Atualizar Semana / Upar' para registrar a primeira semana.")
+                        # REMOVIDO EMOJI
+                        st.success(f"Membro **{usuario_input_add}** adicionado! Use a aba 'Atualizar Semana / Upar' para registrar a primeira semana.")
                         st.rerun()
                     else:
                          pass
@@ -334,9 +339,6 @@ with col1:
         if usuario_input is not None:
             
             # Recaptura os dados da aba de atualização usando session_state
-            # Nota: O dado 'dados_atuais' precisa ser reavaliado aqui, pois os inputs usam o estado
-            
-            # Certifica-se de que estamos usando o DF mais recente no Cloud
             df_reloaded = carregar_dados() 
             dados_atuais = df_reloaded[df_reloaded[col_usuario] == st.session_state.select_user_update].iloc[0]
             pts_acumulados_anteriores = dados_atuais[col_pts_acum]
@@ -440,7 +442,8 @@ with col1:
             escrita_foi_bem_sucedida = salvar_dados(df)
             
             if escrita_foi_bem_sucedida:
-                st.success(f"✅ Dados salvos no Drive! Situação: {situacao} | Próximo Cargo: **{novo_cargo}**")
+                # REMOVIDO EMOJI
+                st.success(f"Dados salvos no Drive! Situação: {situacao} | Próximo Cargo: **{novo_cargo}**")
                 st.rerun()
             else:
                 pass
@@ -450,11 +453,11 @@ with col1:
 
     st.markdown("---")
 
-    # --- SEÇÃO: REMOÇÃO DE USUÁRIOS POR LISTA e RESET GLOBAL (MANTIDA) ---
+    # --- SEÇÃO: REMOÇÃO DE USUÁRIOS POR LISTA e RESET GLOBAL ---
     
-    st.subheader("🗑️ Ferramentas de Gestão")
+    # REMOVIDO EMOJI
+    st.subheader("Ferramentas de Gestão")
     
-    # Colocando remoção e reset em uma box para organizar visualmente
     with st.container(border=True):
         st.markdown("##### Remover Usuários")
         
@@ -466,9 +469,10 @@ with col1:
             usuario_a_remover = st.selectbox("Selecione o Usuário para Remover", ['-- Selecione --'] + opcoes_remocao, key='remove_user_select')
             
             if usuario_a_remover != '-- Selecione --':
-                st.warning(f"⚠️ Confirme a remoção de **{usuario_a_remover}**. Permanente.")
+                st.warning(f"Confirme a remoção de **{usuario_a_remover}**. Permanente.")
                 
-                if st.button(f"🗑️ Confirmar Remoção de {usuario_a_remover}", type="secondary", key='final_remove_button', use_container_width=True):
+                # REMOVIDO EMOJI
+                if st.button(f"Confirmar Remoção de {usuario_a_remover}", type="secondary", key='final_remove_button', use_container_width=True):
                     df = df[df[col_usuario] != usuario_a_remover]
                     salvar_dados(df) 
                     st.success(f"Membro {usuario_a_remover} removido com sucesso!")
@@ -478,13 +482,13 @@ with col1:
 
         st.markdown("---")
 
-        st.markdown("##### 💣 Reset Global da Tabela")
+        st.markdown("##### Reset Global da Tabela")
         
         if st.button("Resetar Tabela INTEIRA"):
             st.session_state.confirm_reset = True
             
         if st.session_state.confirm_reset:
-            st.error("⚠️ Tem certeza? Esta ação é IRREVERSÍVEL e apagará TODOS os dados salvos.")
+            st.error("Tem certeza? Esta ação é IRREVERSÍVEL e apagará TODOS os dados salvos.")
             col_reset1, col_reset2 = st.columns(2)
             
             with col_reset1:
@@ -502,7 +506,8 @@ with col1:
 
 # --- ABA 2: VISUALIZAÇÃO DA TABELA (COLUNA 2) ---
 with col2:
-    st.subheader("⭐ Tabela de Acompanhamento e Ranking")
+    # REMOVIDO EMOJI
+    st.subheader("Tabela de Acompanhamento e Ranking")
     
     if gc is None:
         st.error("ERRO: A conexão com o Google Sheets falhou.")
@@ -521,7 +526,7 @@ with col2:
                            ('background-color: #fffac2; color: #8a6d3b' if 'MANTEVE' in str(x) else '')),
                 subset=[col_sit]
             ),
-            use_container_width=True,
+            use_container_width=True, # Garante que a tabela use 100% da largura da coluna (ótimo para mobile)
             height=600,
             column_order=[col_usuario, col_cargo, col_sit, col_sem, col_pts_acum, col_pts_semana, 'Data_Ultima_Atualizacao']
         )
@@ -533,7 +538,8 @@ with col2:
     ## Seção de Métricas de Atividade
     
     if not df.empty:
-        st.subheader("📈 Métricas Agregadas e Detalhes")
+        # REMOVIDO EMOJI
+        st.subheader("Métricas Agregadas e Detalhes")
         
         df[col_msgs] = pd.to_numeric(df[col_msgs], errors='coerce').fillna(0)
         df[col_horas] = pd.to_numeric(df[col_horas], errors='coerce').fillna(0)
@@ -543,9 +549,11 @@ with col2:
         
         col_m1, col_m2 = st.columns(2)
         with col_m1:
-            st.metric("Total Mensagens (Última Rodada)", f"{total_msgs:,.0f} 💬")
+            # REMOVIDO EMOJI
+            st.metric("Total Mensagens (Última Rodada)", f"{total_msgs:,.0f}")
         with col_m2:
-            st.metric("Total Horas Call (Última Rodada)", f"{total_call:.1f} 🎙️")
+            # REMOVIDO EMOJI
+            st.metric("Total Horas Call (Última Rodada)", f"{total_call:.1f}")
         
         # 2. Métricas Individuais
         usuario_selecionado_display = st.session_state.get('select_user_update')
