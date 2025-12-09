@@ -40,11 +40,13 @@ SHEET_NAME_PRINCIPAL = "dados sistema"
 def get_gsheets_client():
     """Autoriza o cliente gspread."""
     try:
+        # Tenta carregar as credenciais do segredo do Streamlit
         creds_json = st.secrets["gcp_service_account"]
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         credentials = Credentials.from_service_account_info(creds_json, scopes=scopes)
         return gspread.authorize(credentials)
     except Exception as e:
+        # Se falhar (ex: rodando local sem secrets.toml), armazena o erro
         st.session_state['gsheets_error'] = f"Erro de conexão com Google Sheets: {e}"
         return None
 
@@ -173,7 +175,7 @@ def avaliar_situacao(cargo, semana_atual, pontos_acumulados):
 def limpar_campos_interface():
     """Remove as chaves de session_state ligadas aos widgets de input para forçar o valor padrão (0.0) na próxima execução."""
     keys_to_delete = [
-        'mensagens_input', # Chave alterada para mensagens
+        'mensagens_input', 
         'bonus_input', 
     ]
     
@@ -223,7 +225,7 @@ with col_ferramentas:
         st.markdown("##### Adicionar Novo Membro")
         
         usuario_input_add = st.text_input("Nome do Novo Usuário", key='usuario_input_add')
-        # NOVO CAMPO: ID do Usuário
+        # CAMPO user_id ADICIONADO AQUI
         user_id_input_add = st.text_input("ID do Usuário (Opcional)", key='user_id_input_add', value='N/A')
         
         cargo_input_add = st.selectbox("Cargo Inicial", CARGOS_LISTA, index=cargo_inicial_default, key='cargo_select_add')
@@ -307,14 +309,12 @@ with col_ferramentas:
 with col_upar:
     st.subheader("Upar (Registro de Dados)")
     
-    # --- BLOCO: VISUALIZAÇÃO SIMPLES DE METAS (ATUALIZADO) ---
+    # --- BLOCO: VISUALIZAÇÃO SIMPLES DE METAS ---
     
-    # Cria um DataFrame de Metas para visualização, calculando as mensagens necessárias
     metas_data_pontos_simples = []
     
     for idx, (cargo, metas) in enumerate(METAS_PONTUACAO.items()):
         
-        # Converte pontos para mensagens para display
         mensagens_up = metas['meta_up'] * MENSAGENS_POR_PONTO
         
         dias_ciclo = metas['ciclo'] * DIAS_POR_SEMANA
@@ -324,7 +324,7 @@ with col_upar:
             "Ciclo (Sem)": metas['ciclo'],
             "Meta UP (pts)": metas['meta_up'],
             "Meta UP (msgs)": f"{mensagens_up:,.0f}",
-            "Meta Manter (pts)": metas['meta_manter'], # Apenas pontos para manter
+            "Meta Manter (pts)": metas['meta_manter'], 
             "Msgs/Dia (UP)": f"{mensagens_up / dias_ciclo:,.0f}",
         })
         
@@ -370,10 +370,7 @@ with col_upar:
             # LÊ O ID DO USUÁRIO
             user_id_atual = dados_atuais.get(col_user_id, 'N/A')
             
-            # --- CHAVE: LER O CARGO MAIS ATUALIZADO DO DATAFRAME ---
             cargo_atual_dados = dados_atuais[col_cargo] 
-            # --------------------------------------------------------
-            
             pontos_acumulados_anteriores = dados_atuais[col_pontos_acum]
             semana_atual_dados = int(dados_atuais[col_sem]) 
             mult_ind_anterior = dados_atuais[col_mult_ind]
@@ -385,15 +382,30 @@ with col_upar:
                     # Usa o cargo_atual_dados (lido do DataFrame recarregado) como default
                     cargo_index_default = CARGOS_LISTA.index(cargo_atual_dados)
                     
-                    st.markdown(f"**Membro:** `{usuario_input_upar}` | **Cargo Atual no DF:** `{cargo_atual_dados}`")
-                    # EXIBE O ID DO USUÁRIO
-                    if user_id_atual != 'N/A':
-                        st.markdown(f"**ID:** `{user_id_atual}`") 
+                    st.markdown(f"**Membro Selecionado:** `{usuario_input_upar}`") 
                     
+                    # 🌟 AQUI: NOVO BLOCO PARA VISUALIZAR E EDITAR O ID DO USUÁRIO 🌟
+                    with st.container(border=True):
+                         user_id_input_update = st.text_input(
+                             "ID do Usuário", 
+                             key='user_id_input_update', 
+                             value=user_id_atual, # Valor atual é o lido do DF
+                             help="Preencha o ID do usuário. Se for 'N/A' e você preencher, ele será salvo."
+                         )
+                         
+                         if user_id_atual != 'N/A' and st.session_state.user_id_input_update == user_id_atual:
+                             st.caption(f"ID atual: **{user_id_atual}**")
+                         elif user_id_atual != st.session_state.user_id_input_update:
+                             st.warning(f"O ID será atualizado de `{user_id_atual}` para `{st.session_state.user_id_input_update}` após salvar a semana.")
+                         else:
+                             st.caption("ID não preenchido.")
+                             
+                    st.markdown("---") # Separador visual
+
                     # 1. CARGO ATUAL
                     cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=cargo_index_default, key='cargo_select_update')
                     
-                    # Atualiza o total de semanas do ciclo baseado no cargo SELECIONADO (CHAVE DINÂMICA)
+                    # Atualiza o total de semanas do ciclo baseado no cargo SELECIONADO
                     total_semanas_ciclo_cargo_selecionado = METAS_PONTUACAO.get(cargo_input, {'ciclo': 1})['ciclo']
                     
                     # --- Lógica para Mensagem de Info e Sugestão de Semana ---
@@ -478,6 +490,7 @@ with col_upar:
             
             # Captura os dados de entrada
             mensagens_input = st.session_state.mensagens_input
+            user_id_salvar = st.session_state.user_id_input_update # CAPTURA O ID EDITADO
             
             # *** CÁLCULO CHAVE: CONVERTE MENSAGENS EM PONTOS BASE ***
             # Mensagens / 50 = Pontos Base
@@ -490,8 +503,6 @@ with col_upar:
             
             pontos_acumulados_anteriores = dados_atuais[col_pontos_acum]
             pontos_total_final_anterior = dados_atuais[col_pontos_final]
-            # LÊ O user_id A SER SALVO
-            user_id_salvar = dados_atuais.get(col_user_id, 'N/A')
             
             total_semanas_ciclo_cargo = METAS_PONTUACAO.get(cargo_input, {'ciclo': 1})['ciclo']
 
@@ -573,7 +584,7 @@ with col_upar:
             # 4. Prepara os novos dados
             novo_dado = {
                 col_usuario: usuario_input_upar, 
-                col_user_id: user_id_salvar, # Salva o ID
+                col_user_id: user_id_salvar, # Salva o ID (pode ser o valor atualizado)
                 col_cargo: novo_cargo_para_tabela, 
                 col_sit: situacao_para_tabela, 
                 col_sem: nova_semana_para_tabela, 
@@ -614,6 +625,7 @@ with col_ranking:
     st.info(f"Total de Membros Registrados: **{len(df)}**")
     
     if not df.empty: 
+        # Ordena por Pontuação Total Final e Cargo (como desempate)
         df_display = df.sort_values(by=[col_pontos_final, col_cargo], ascending=[False, True])
                                         
         st.dataframe(
@@ -637,7 +649,7 @@ with col_ranking:
 
     if not df.empty:
         total_pontos_sem = df[col_pontos_sem].sum()
-        total_bonus_sem = df[col_bonus_sem].sum() # Corrigido para somar o bônus, não os pontos semanais novamente
+        total_bonus_sem = df[col_bonus_sem].sum() 
         
         col_met1, col_met2 = st.columns(2)
         
