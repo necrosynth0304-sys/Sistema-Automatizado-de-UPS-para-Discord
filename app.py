@@ -128,7 +128,6 @@ def salvar_dados(df, sheet_name):
 def calcular_pontuacao_semana(pontos_base, bonus, mult_ind):
     """Calcula a pontuação final da semana com o multiplicador individual."""
     
-    # Não há multiplicador global
     pontos_final = (pontos_base + bonus) * mult_ind
     
     return round(pontos_final, 1)
@@ -172,19 +171,107 @@ df = carregar_dados(SHEET_NAME_PRINCIPAL) # Carrega a aba 'dados sistema'
 if 'salvar_button_clicked' not in st.session_state:
     st.session_state.salvar_button_clicked = False
 
-col1, col2 = st.columns([1, 2])
+# REORGANIZAÇÃO DE COLUNAS: 
+# Coluna 1: Ferramentas de Gestão
+# Coluna 2: Entrada de Dados / Upar
+# Coluna 3: Tabela de Acompanhamento (Ranking)
+col_ferramentas, col_upar, col_ranking = st.columns([1, 1.2, 2])
 
-with col1:
-    st.subheader("Entrada de Dados e Gestão")
+# Variável para cargo inicial (usada nas Ferramentas e Upar)
+if CARGOS_LISTA:
+    cargo_inicial_default = CARGOS_LISTA.index('f*ck')
+else:
+    cargo_inicial_default = 0
+    
+usuario_input_upar = None
 
-    usuario_input = None
-    if CARGOS_LISTA:
-        cargo_inicial_default = CARGOS_LISTA.index('f*ck')
-    else:
-        cargo_inicial_default = 0
+# =========================================================================
+# === COLUNA 1: FERRAMENTAS DE GESTÃO (Adicionar/Remover/Reset) ===
+# =========================================================================
+with col_ferramentas:
+    st.subheader("Ferramentas de Gestão")
+    
+    # 1. Adicionar Novo Membro
+    with st.container(border=True):
+        st.markdown("##### Adicionar Novo Membro")
+        
+        usuario_input_add = st.text_input("Nome do Novo Usuário", key='usuario_input_add')
+        cargo_input_add = st.selectbox("Cargo Inicial", CARGOS_LISTA, index=cargo_inicial_default, key='cargo_select_add')
+        
+        if st.button("Adicionar Membro", type="primary", use_container_width=True):
+            if usuario_input_add:
+                if usuario_input_add in df[col_usuario].values:
+                    st.error(f"O membro '{usuario_input_add}' já existe.")
+                else:
+                    novo_dado_add = {
+                        col_usuario: usuario_input_add, 
+                        col_cargo: cargo_input_add, 
+                        col_sit: f"Em andamento (1/{METAS_PONTUACAO.get(cargo_input_add, {'ciclo': 3})['ciclo']})",
+                        col_sem: 1,
+                        col_pontos_acum: 0.0, 
+                        col_pontos_sem: 0.0,
+                        col_bonus_sem: 0.0,
+                        col_mult_ind: 1.0,
+                        'Data_Ultima_Atualizacao': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        col_pontos_final: 0.0,
+                    }
+                    
+                    # Concatena o novo membro ao DataFrame
+                    df = pd.concat([df, pd.DataFrame([novo_dado_add])], ignore_index=True)
+                    
+                    if salvar_dados(df, SHEET_NAME_PRINCIPAL):
+                        st.success(f"Membro **{usuario_input_add}** adicionado!")
+                        st.rerun()
+            else:
+                 st.error("Digite o nome do novo membro.")
+        
+    st.markdown("---")
+    
+    # 2. Remoção / Reset
+    with st.container(border=True):
+        st.markdown("##### Remoção / Reset de Tabela")
 
-    # === REGISTRO DA SEMANA ===
-    with st.container():
+        if 'confirm_reset' not in st.session_state:
+            st.session_state.confirm_reset = False
+
+        # Remoção de Usuário
+        if not df.empty:
+            opcoes_remocao = sorted(df[col_usuario].unique().tolist())
+            usuario_a_remover = st.selectbox("Selecione o Usuário para Remover", ['-- Selecione --'] + opcoes_remocao, key='remove_user_select')
+            
+            if usuario_a_remover != '-- Selecione --':
+                st.warning(f"Confirme a remoção de **{usuario_a_remover}**. Permanente.")
+                
+                if st.button(f"Confirmar Remoção de {usuario_a_remover}", type="secondary", key='final_remove_button', use_container_width=True):
+                    df = df[df[col_usuario] != usuario_a_remover]
+                    if salvar_dados(df, SHEET_NAME_PRINCIPAL):
+                        st.success(f"Membro {usuario_a_remover} removido com sucesso!")
+                        st.rerun()
+        
+        st.markdown("---")
+        
+        # Reset Total
+        if st.button("Resetar Tabela INTEIRA"):
+            st.session_state.confirm_reset = True
+            
+        if st.session_state.confirm_reset:
+            st.error("Tem certeza? Esta ação é IRREVERSÍVEL. Zera todos os dados dos membros.")
+            
+            if st.button("SIM, ZERAR TUDO", type="secondary", key='sim_reset', use_container_width=True):
+                df_reset = pd.DataFrame(columns=df.columns) 
+                if salvar_dados(df_reset, SHEET_NAME_PRINCIPAL):
+                    st.success("Tabela zerada com sucesso!")
+                    st.session_state.confirm_reset = False
+                    st.rerun()
+
+# =========================================================================
+# === COLUNA 2: UPAR (Entrada de Dados/Registro da Semana) ===
+# =========================================================================
+with col_upar:
+    st.subheader("Upar (Entrada de Dados)")
+    
+    # Entrada de Dados
+    with st.container(border=True):
         
         opcoes_usuarios = ['-- Selecione o Membro --'] + sorted(df[col_usuario].unique().tolist()) 
         usuario_selecionado = st.selectbox("Selecione o Membro", opcoes_usuarios, key='select_user_update')
@@ -192,7 +279,7 @@ with col1:
         if usuario_selecionado != '-- Selecione o Membro --' and not df.empty and usuario_selecionado in df[col_usuario].values:
             
             dados_atuais = df[df[col_usuario] == usuario_selecionado].iloc[0]
-            usuario_input = dados_atuais[col_usuario]
+            usuario_input_upar = dados_atuais[col_usuario]
             
             cargo_atual_dados = dados_atuais[col_cargo]
             pontos_acumulados_anteriores = dados_atuais[col_pontos_acum]
@@ -200,12 +287,12 @@ with col1:
             mult_ind_anterior = dados_atuais[col_mult_ind]
             
             # Bloco de Informação do Membro
-            with st.container(border=True):
+            with st.container():
                 if cargo_atual_dados in METAS_PONTUACAO:
                     cargo_index_default = CARGOS_LISTA.index(cargo_atual_dados)
                     total_semanas_ciclo_cargo = METAS_PONTUACAO[cargo_atual_dados]['ciclo']
                     
-                    st.markdown(f"**Membro:** `{usuario_input}` | **Cargo Atual:** `{cargo_atual_dados}`")
+                    st.markdown(f"**Membro:** `{usuario_input_upar}` | **Cargo Atual:** `{cargo_atual_dados}`")
                     
                     if dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
                         proxima_semana = 1
@@ -244,16 +331,14 @@ with col1:
             
         else:
             st.info("Selecione um membro acima para registrar a pontuação da semana.")
-            usuario_input = None
+            usuario_input_upar = None
             
-    # ----------------------------------------------------
     # --- LÓGICA DE PROCESSAMENTO (EXECUÇÃO) ---
-    # ----------------------------------------------------
     
     if st.session_state.salvar_button_clicked:
         st.session_state.salvar_button_clicked = False
         
-        if usuario_input is not None:
+        if usuario_input_upar is not None:
             
             # Recarrega para garantir dados frescos
             df_reloaded = carregar_dados(SHEET_NAME_PRINCIPAL)
@@ -269,7 +354,7 @@ with col1:
             semana_atual = int(dados_atuais[col_sem])
             pontos_total_final_anterior = dados_atuais[col_pontos_final]
 
-            # 1. Cálculo da Pontuação da Semana (Apenas Multiplicador Individual)
+            # 1. Cálculo da Pontuação da Semana 
             pontos_semana_calc = calcular_pontuacao_semana(
                 pontos_base_input, 
                 bonus_input, 
@@ -322,7 +407,7 @@ with col1:
             
             # 4. Prepara os novos dados
             novo_dado = {
-                col_usuario: usuario_input, 
+                col_usuario: usuario_input_upar, 
                 col_cargo: novo_cargo, 
                 col_sit: situacao,
                 col_sem: nova_semana,
@@ -335,7 +420,7 @@ with col1:
             }
             
             # 5. Atualiza o DataFrame e salva
-            df.loc[df[df[col_usuario] == usuario_input].index[0]] = novo_dado
+            df.loc[df[df[col_usuario] == usuario_input_upar].index[0]] = novo_dado
 
             if salvar_dados(df, SHEET_NAME_PRINCIPAL):
                 st.success(f"Dados salvos! Situação: {situacao} | Próximo Cargo: **{novo_cargo}**")
@@ -345,103 +430,36 @@ with col1:
 
     
     # ----------------------------------------------------
-    # --- BLOCO: VISUALIZAÇÃO SIMPLES DE METAS ---
+    # --- BLOCO: VISUALIZAÇÃO SIMPLES DE METAS (na seção Upar) ---
     # ----------------------------------------------------
     st.markdown("---")
     
-    # Cria um DataFrame de Metas para visualização
+    st.markdown("##### Tabela de Metas por Cargo")
+    
     metas_data_pontos_simples = []
     
     for cargo, metas in METAS_PONTUACAO.items():
         metas_data_pontos_simples.append({
             "Cargo": cargo,
             "Ciclo (Semanas)": metas['ciclo'],
-            "Meta UP (Pontos)": metas['meta_up'],
-            "Meta Manter (Pontos)": metas['meta_manter']
+            "Meta UP (Pts)": metas['meta_up'],
+            "Meta Manter (Pts)": metas['meta_manter']
         })
         
     df_metas_pontos_simples = pd.DataFrame(metas_data_pontos_simples)
 
-    with st.expander("Tabela de Metas por Cargo (Pontos e Ciclos) 📋", expanded=False):
+    with st.expander("Expandir Tabela de Metas 📋", expanded=False):
         st.dataframe(
             df_metas_pontos_simples,
             hide_index=True,
             use_container_width=True,
         )
-    # ----------------------------------------------------
-    
-    st.subheader("Ferramentas de Gestão")
-    with st.container(border=True):
-        st.markdown("##### Adicionar Novo Membro")
-        
-        usuario_input_add = st.text_input("Nome do Novo Usuário", key='usuario_input_add')
-        cargo_input_add = st.selectbox("Cargo Inicial", CARGOS_LISTA, index=cargo_inicial_default, key='cargo_select_add')
-        
-        if st.button("Adicionar Membro", type="secondary", use_container_width=True):
-            if usuario_input_add:
-                if usuario_input_add in df[col_usuario].values:
-                    st.error(f"O membro '{usuario_input_add}' já existe. Use a aba 'Registro da Semana'.")
-                else:
-                    novo_dado_add = {
-                        col_usuario: usuario_input_add, 
-                        col_cargo: cargo_input_add, 
-                        col_sit: f"Em andamento (1/{METAS_PONTUACAO.get(cargo_input_add, {'ciclo': 3})['ciclo']})",
-                        col_sem: 1,
-                        col_pontos_acum: 0.0, 
-                        col_pontos_sem: 0.0,
-                        col_bonus_sem: 0.0,
-                        col_mult_ind: 1.0,
-                        'Data_Ultima_Atualizacao': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        col_pontos_final: 0.0,
-                    }
-                    
-                    df = pd.concat([df, pd.DataFrame([novo_dado_add])], ignore_index=True)
-                    
-                    if salvar_dados(df, SHEET_NAME_PRINCIPAL):
-                        st.success(f"Membro **{usuario_input_add}** adicionado!")
-                        st.rerun()
-            else:
-                 st.error("Digite o nome do novo membro.")
-        
-        st.markdown("---")
-        st.markdown("##### Remoção / Reset")
-
-        if 'confirm_reset' not in st.session_state:
-            st.session_state.confirm_reset = False
-
-        if not df.empty:
-            opcoes_remocao = sorted(df[col_usuario].unique().tolist())
-            usuario_a_remover = st.selectbox("Selecione o Usuário para Remover", ['-- Selecione --'] + opcoes_remocao, key='remove_user_select')
-            
-            if usuario_a_remover != '-- Selecione --':
-                st.warning(f"Confirme a remoção de **{usuario_a_remover}**. Permanente.")
-                
-                if st.button(f"Confirmar Remoção de {usuario_a_remover}", type="secondary", key='final_remove_button', use_container_width=True):
-                    df = df[df[col_usuario] != usuario_a_remover]
-                    salvar_dados(df, SHEET_NAME_PRINCIPAL) 
-                    st.success(f"Membro {usuario_a_remover} removido com sucesso!")
-                    st.rerun()
-        
-        st.markdown("---")
-        
-        if st.button("Resetar Tabela INTEIRA"):
-            st.session_state.confirm_reset = True
-            
-        if st.session_state.confirm_reset:
-            st.error("Tem certeza? Esta ação é IRREVERSÍVEL. Zera todos os dados dos membros.")
-            col_reset1, col_reset2 = st.columns(2)
-            
-            with col_reset1:
-                if st.button("SIM, ZERAR TUDO", type="secondary", key='sim_reset'):
-                    df_reset = pd.DataFrame(columns=df.columns) 
-                    salvar_dados(df_reset, SHEET_NAME_PRINCIPAL) 
-                    st.success("Tabela zerada com sucesso!")
-                    st.session_state.confirm_reset = False
-                    st.rerun()
 
 
-# --- TABELA DE VISUALIZAÇÃO (COLUNA 2) ---
-with col2:
+# =========================================================================
+# === COLUNA 3: TABELA DE ACOMPANHAMENTO (RANKING) ===
+# =========================================================================
+with col_ranking:
     st.subheader("Tabela de Acompanhamento e Ranking")
     
     st.info(f"Total de Membros Registrados: **{len(df)}**")
@@ -459,6 +477,7 @@ with col2:
             ),
             use_container_width=True,
             height=600,
+            # Ordem das colunas na tabela de ranking
             column_order=[col_usuario, col_cargo, col_sit, col_pontos_acum, col_pontos_sem, col_bonus_sem, col_mult_ind, 'Data_Ultima_Atualizacao']
         )
     else:
