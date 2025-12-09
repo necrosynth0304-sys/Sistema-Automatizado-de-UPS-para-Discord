@@ -185,6 +185,10 @@ if 'salvar_button_clicked' not in st.session_state:
 if 'usuario_selecionado_id' not in st.session_state:
     st.session_state.usuario_selecionado_id = '-- Selecione o Membro --'
 
+# Variável para armazenar o cargo que acabou de ser UPADO/REBAIXADO para a mensagem de sucesso
+if 'novo_cargo_apos_ciclo' not in st.session_state:
+    st.session_state.novo_cargo_apos_ciclo = None
+
 # REORGANIZAÇÃO DE COLUNAS: 
 col_ferramentas, col_upar, col_ranking = st.columns([1, 1.2, 2])
 
@@ -346,7 +350,7 @@ with col_upar:
             # --------------------------------------------------------
             
             pontos_acumulados_anteriores = dados_atuais[col_pontos_acum]
-            semana_atual_dados = int(dados_atuais[col_sem]) # Esta é a próxima semana a ser registrada
+            semana_atual_dados = int(dados_atuais[col_sem]) # Esta é a próxima semana a ser registrada (ou semana 1 se ciclo anterior terminou)
             mult_ind_anterior = dados_atuais[col_mult_ind]
             
             # Bloco de Informação do Membro
@@ -359,18 +363,25 @@ with col_upar:
                     st.markdown(f"**Membro:** `{usuario_input_upar}` | **Cargo Atual no DF:** `{cargo_atual_dados}`")
                     
                     # 1. CARGO ATUAL
-                    # Garante que a caixa de seleção inicie no cargo lido do DF (o novo cargo, se houver UP)
                     cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=cargo_index_default, key='cargo_select_update')
                     
                     # Atualiza o total de semanas do ciclo baseado no cargo SELECIONADO (CHAVE DINÂMICA)
                     total_semanas_ciclo_cargo_selecionado = METAS_PONTUACAO.get(cargo_input, {'ciclo': 1})['ciclo']
                     
-                    # Determina o valor sugerido para a semana de entrada
-                    if dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
-                        # Se o ciclo anterior terminou, a próxima semana sugerida é 1
+                    # --- Lógica para Mensagem de Info e Sugestão de Semana ---
+                    
+                    # Apenas exibe a info se houve um UP/REBAIXA/MANTEVE na última execução
+                    if st.session_state.novo_cargo_apos_ciclo == cargo_input and dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
                         proxima_semana_sugerida = 1
-                        # Mensagem clara sobre o resultado do ciclo anterior - USANDO O CARGO SELECIONADO NA CAIXA
                         st.info(f"Ciclo finalizado ({dados_atuais[col_sit]}). Registre a **Semana 1** do cargo atual (**{cargo_input}**).")
+                        # Limpa o state para não exibir a mensagem novamente
+                        st.session_state.novo_cargo_apos_ciclo = None
+                    
+                    elif dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
+                        # Se o DF mostra que o ciclo anterior terminou, sugere Semana 1
+                        proxima_semana_sugerida = 1
+                        # Note: st.info não é mais exibido aqui para evitar repetição após o st.rerun
+                        
                     else:
                         # Se o ciclo está em andamento, sugere a próxima semana
                         proxima_semana_sugerida = semana_atual_dados
@@ -379,7 +390,7 @@ with col_upar:
                             proxima_semana_sugerida = total_semanas_ciclo_cargo_selecionado
                         
                     # 2. SEMANA DO CICLO (Permitindo Edição Manual)
-                    # A semana máxima é baseada no cargo SELECIONADO (cargo_input)
+                    # O valor inicial é baseado na lógica acima (proxima_semana_sugerida)
                     semana_input = st.number_input(
                         f"Semana do Ciclo (Máx: {total_semanas_ciclo_cargo_selecionado})", 
                         min_value=1, 
@@ -449,7 +460,11 @@ with col_upar:
             )
             
             # Lógica de Acumulação e Reset 
-            if semana_registrada_manual == 1:
+            if semana_registrada_manual == 1 and dados_atuais[col_sit] not in ["UPADO", "REBAIXADO", "MANTEVE"]:
+                 # Se a semana é 1, mas o ciclo anterior não terminou, acumula
+                 pontos_acumulados_a_somar = pontos_acumulados_anteriores
+            elif semana_registrada_manual == 1 and dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
+                 # Se a semana é 1 e o ciclo anterior terminou, zera (aqui não deveria chegar, mas segurança)
                  pontos_acumulados_a_somar = 0.0
             else:
                  pontos_acumulados_a_somar = pontos_acumulados_anteriores
@@ -487,7 +502,6 @@ with col_upar:
                         meta_up = METAS_PONTUACAO[cargo_input]['meta_up']
                         
                         # --- CORREÇÃO CÁLCULO DE UP MÚLTIPLO ---
-                        # Usa float para garantir precisão e floor
                         multiplicador_up = max(1, int(pontos_acumulados_total / float(meta_up)))
                         
                         novo_indice = indice_atual + multiplicador_up
@@ -542,18 +556,18 @@ with col_upar:
                 limpar_campos_interface() # Limpa os campos de input de pontos/bônus
                 st.session_state.usuario_selecionado_id = usuario_input_upar # Persiste o usuário selecionado
                 
-                # --- CHAVE: REMOÇÃO DA ATUALIZAÇÃO DO SESSION STATE DO SELECTBOX ---
-                # A próxima execução lerá o novo valor diretamente do DataFrame.
-                # NENHUM CÓDIGO AQUI
+                # --- CHAVE: Salva o novo cargo no state para a próxima execução exibir a st.info correta ---
+                st.session_state.novo_cargo_apos_ciclo = novo_cargo_para_tabela
                 
                 msg_avanco = ""
                 if situacao_final == "UPADO":
-                    msg_avanco = f" (**{multiplicador_up}** níveis!)"
+                    # Mensagem de sucesso deve mostrar o cargo para o qual ele PULOU
+                    msg_avanco = f" (Avançou **{multiplicador_up}** níveis para **{novo_cargo_para_tabela}**!)"
                 elif situacao_final == "REBAIXADO":
-                    msg_avanco = " (1 nível)"
+                    msg_avanco = f" (Rebaixou 1 nível para **{novo_cargo_para_tabela}**)"
                 
                 # Mensagem de sucesso
-                st.success(f"Dados salvos! Situação: **{situacao_para_tabela}** | Próximo Cargo/Cargo Atual: **{novo_cargo_para_tabela}**{msg_avanco}")
+                st.success(f"Dados salvos! Situação: **{situacao_para_tabela}** | Próximo Ciclo: **{novo_cargo_para_tabela}**{msg_avanco}")
                 st.rerun()
         else:
             st.error("Selecione um membro válido antes de salvar.")
