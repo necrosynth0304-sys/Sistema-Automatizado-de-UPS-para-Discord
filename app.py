@@ -1,3 +1,4 @@
+```python
 import streamlit as st
 import pandas as pd
 import os
@@ -41,10 +42,8 @@ def carregar_dados():
         return pd.DataFrame(columns=colunas)
         
     df = pd.read_csv(ARQUIVO_DADOS)
-    # Garante que o DataFrame tem todas as colunas
     for col in colunas:
         if col not in df.columns:
-            # Inicializa colunas faltantes com 0 ou valor padrão
             df[col] = df[colunas[0]].apply(lambda x: 0 if 'Pts' in col or 'Semana' in col else 'N/A')
             
     return df
@@ -53,7 +52,6 @@ def salvar_dados(df):
     df.to_csv(ARQUIVO_DADOS, index=False)
 
 def calcular_pontos_semana(msgs, horas, rush_hour, desafio_tipo, participou_desafio):
-    # Regra: Pts_msg = msgs / 50 | Pts_voz = horas * 2
     pts_msg = msgs / 50
     pts_voz = horas * 2
     pts_total_atividade = pts_msg + pts_voz
@@ -78,29 +76,27 @@ def avaliar_situacao(cargo, pts_acumulados, semana_atual):
     
     situacao = ""
     
-    # AVALIAÇÃO FINAL: Acontece APENAS na última semana do ciclo
     if semana_atual >= ciclo_max:
         if pts_acumulados >= meta_area:
-            situacao = "UPADO 🚀"
+            situacao = "UPADO"
         elif pts_acumulados >= meta_manter:
-            situacao = "MANTEVE ⚓"
+            situacao = "MANTEVE"
         else:
-            situacao = "REBAIXADO 🔻"
+            situacao = "REBAIXADO"
     else:
-        # AVALIAÇÃO INTERMEDIÁRIA
         situacao = f"Em andamento ({semana_atual}/{ciclo_max})"
         
     return situacao
 
 # --- INTERFACE (STREAMLIT) ---
 
-st.set_page_config(page_title="Gestor de Cargos V3", layout="wide")
-st.title("EXY - Tabela de Ups")
+st.set_page_config(page_title="Sistema de Ups EXY", layout="wide")
+st.title("Sistema de Ups EXY")
 
 df = carregar_dados()
 
 # Sidebar - Configurações Globais da Semana
-st.sidebar.header("⚙️ Configurações da Semana")
+st.sidebar.header("Configurações da Semana")
 weekend_ativo = st.sidebar.checkbox("Ativar Weekend (1.2x)?", value=False)
 tipo_desafio = st.sidebar.selectbox("Desafio Semanal Ativo", OPCOES_DESAFIO)
 
@@ -108,40 +104,41 @@ tipo_desafio = st.sidebar.selectbox("Desafio Semanal Ativo", OPCOES_DESAFIO)
 col1, col2 = st.columns([1, 2])
 
 with col1:
-    st.subheader("📝 Entrada de Dados Semanais")
+    st.subheader("Entrada de Dados Semanais")
     
-    # Seleção de Usuário (Novo ou Existente)
     opcoes_usuarios = ['-- Novo Usuário --'] + sorted(df['Usuario'].unique().tolist())
-    usuario_selecionado = st.selectbox("Selecione/Adicione o Usuário", opcoes_usuarios)
+    usuario_selecionado = st.selectbox("Selecione/Adicione o Usuário", opcoes_usuarios, key='select_user')
     
-    # Variáveis de inicialização
-    cargo_atual_dados = CARGOS_LISTA[-1] # Padrão 'low'
-    semana_input = 1
+    cargo_atual_dados = CARGOS_LISTA[-1] 
+    semana_input_value = 1
     pts_acumulados_anteriores = 0.0
+    cargo_index_default = CARGOS_LISTA.index('low')
 
     if usuario_selecionado != '-- Novo Usuário --':
         dados_atuais = df[df['Usuario'] == usuario_selecionado].iloc[0]
         usuario_input = st.text_input("Nome do Usuário", value=dados_atuais['Usuario'], disabled=True)
         
-        # Carrega dados do usuário existente
         cargo_atual_dados = dados_atuais['Cargo']
         pts_acumulados_anteriores = dados_atuais['Pts_Acumulados_Ciclo']
         semana_atual = dados_atuais['Semana_Atual']
         ciclo_max = METAS[cargo_atual_dados]['ciclo']
+        cargo_index_default = CARGOS_LISTA.index(cargo_atual_dados)
         
         st.info(f"Ciclo atual: **{cargo_atual_dados}** ({semana_atual}/{ciclo_max} semanas)")
         
-        if dados_atuais['Situação'] in ["UPADO 🚀", "REBAIXADO 🔻", "MANTEVE ⚓"]:
+        if dados_atuais['Situação'] in ["UPADO", "REBAIXADO", "MANTEVE"]:
             proxima_semana = 1
-            pts_acumulados_anteriores = 0.0 # Zera para o novo ciclo
-            st.warning("Usuário finalizou o ciclo. O próximo registro será para a **Semana 1** do novo cargo.")
+            pts_acumulados_anteriores = 0.0 
+            st.warning("Usuário finalizou o ciclo. Próximo registro será na **Semana 1** do novo cargo.")
         else:
             proxima_semana = semana_atual + 1
             if proxima_semana > ciclo_max: proxima_semana = ciclo_max
             
+        semana_input_value = int(proxima_semana)
+        
         semana_input = st.number_input(f"Próxima Semana do Ciclo (Máx: {ciclo_max})", 
-                                       min_value=1, max_value=ciclo_max, value=int(proxima_semana))
-        cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=CARGOS_LISTA.index(cargo_atual_dados))
+                                       min_value=1, max_value=ciclo_max, value=semana_input_value, key='semana_input')
+        cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=cargo_index_default, key='cargo_select')
 
     else:
         usuario_input = st.text_input("Nome do Usuário")
@@ -150,76 +147,66 @@ with col1:
 
 
     st.markdown("---")
-    msgs_input = st.number_input("Mensagens NESTA SEMANA", min_value=0, value=0)
-    horas_input = st.number_input("Horas em Call NESTA SEMANA", min_value=0.0, value=0.0, step=0.5)
+    msgs_input = st.number_input("Mensagens NESTA SEMANA", min_value=0, value=0, key='msgs_input')
+    horas_input = st.number_input("Horas em Call NESTA SEMANA", min_value=0.0, value=0.0, step=0.5, key='horas_input')
     
     st.markdown("---")
-    st.write("**Bônus & Multiplicadores Individuais**")
-    check_rush = st.checkbox("Participou Rush Hour? (1.5x)")
-    check_desafio = st.checkbox("Participou Desafio Semanal?")
-    bonus_fixo_input = st.number_input("Bônus Fixo ÚNICO (Streak, Pts Extras)", value=0.0)
+    st.write("**Bônus e Multiplicadores Individuais**")
+    check_rush = st.checkbox("Participou Rush Hour? (1.5x)", key='rush_check')
+    check_desafio = st.checkbox("Participou Desafio Semanal?", key='desafio_check')
+    bonus_fixo_input = st.number_input("Bônus Fixo ÚNICO (Streak, Pts Extras)", value=0.0, key='bonus_input')
     
-    if st.button("Salvar / Atualizar Semana"):
+    
+    # ----------------------------------------------------
+    # --- BOTÃO DE SALVAR ---
+    # ----------------------------------------------------
+
+    if st.button("Salvar / Atualizar Semana", type="primary"):
         if usuario_input and usuario_input != '-- Novo Usuário --':
             
-            # 1. Calcula os pontos da semana (com multiplicadores)
+            # --- Lógica de Cálculo e Avaliação (Mantida) ---
             pts_semana_multi = calcular_pontos_semana(msgs_input, horas_input, check_rush, tipo_desafio, check_desafio)
-            
-            # 2. Verifica a regra do Weekend (1.2x)
             meta_do_cargo = METAS[cargo_input]['meta_pts']
             pts_semana_final = pts_semana_multi
             if weekend_ativo and pts_semana_multi >= (meta_do_cargo * 0.70):
                 pts_semana_final = pts_semana_multi * 1.2
-                
-            # 3. Adiciona bônus fixo
             pts_semana_final += bonus_fixo_input
 
-            # 4. Acumula os pontos
             pts_acumulados_total = pts_acumulados_anteriores + pts_semana_final
-            
-            # 5. Avalia a situação (usa a nova semana de input)
             situacao = avaliar_situacao(cargo_input, pts_acumulados_total, semana_input)
 
-            # --- Lógica de Atualização de Cargo e Reset (Bug Fix) ---
             novo_cargo = cargo_input 
-            nova_semana = semana_input
-            novo_pts_acumulados = pts_acumulados_total
             
-            if situacao == "UPADO 🚀":
-                novo_cargo = SEQUENCIA_PROMO.get(cargo_input, 'god')
+            # Determina a próxima semana e o novo acumulado APÓS a avaliação
+            if situacao in ["UPADO", "REBAIXADO", "MANTEVE"]:
                 nova_semana = 1
                 novo_pts_acumulados = 0.0
-            elif situacao == "REBAIXADO 🔻":
-                # Rebaixamento: um nível abaixo
-                try:
-                    indice_atual = CARGOS_LISTA.index(cargo_input)
-                    if indice_atual > 0:
-                        novo_cargo = CARGOS_LISTA[indice_atual - 1]
-                    else:
+                
+                # Ajusta o cargo se UPADO/REBAIXADO
+                if situacao == "UPADO":
+                    novo_cargo = SEQUENCIA_PROMO.get(cargo_input, 'god')
+                elif situacao == "REBAIXADO":
+                    try:
+                        indice_atual = CARGOS_LISTA.index(cargo_input)
+                        if indice_atual > 0:
+                            novo_cargo = CARGOS_LISTA[indice_atual - 1]
+                        else:
+                            novo_cargo = 'low'
+                    except ValueError:
                         novo_cargo = 'low'
-                except ValueError:
-                    novo_cargo = 'low'
-                nova_semana = 1
-                novo_pts_acumulados = 0.0
-            elif situacao == "MANTEVE ⚓":
-                nova_semana = 1
-                novo_pts_acumulados = 0.0
             else:
-                # Em andamento - Incrementa a semana para a próxima rodada (apenas para exibição na tabela)
                 nova_semana = semana_input + 1
+                if nova_semana > METAS[cargo_input]['ciclo']:
+                    nova_semana = METAS[cargo_input]['ciclo']
+                novo_pts_acumulados = pts_acumulados_total
 
 
             # Prepara os novos dados
             novo_dado = {
-                'Usuario': usuario_input,
-                'Cargo': novo_cargo,
-                'Semana_Atual': nova_semana,
-                'Pts_Acumulados_Ciclo': novo_pts_acumulados,
-                'Ultima_Semana_Msgs': msgs_input,
-                'Ultima_Semana_Horas': horas_input,
-                'Pts_Semana': round(pts_semana_final, 2),
-                'Pts_Total_Final': round(pts_acumulados_total, 2), # Pontuação total final do ciclo (para visualização)
-                'Situação': situacao,
+                'Usuario': usuario_input, 'Cargo': novo_cargo, 'Semana_Atual': nova_semana,
+                'Pts_Acumulados_Ciclo': novo_pts_acumulados, 'Ultima_Semana_Msgs': msgs_input,
+                'Ultima_Semana_Horas': horas_input, 'Pts_Semana': round(pts_semana_final, 2),
+                'Pts_Total_Final': round(pts_acumulados_total, 2), 'Situação': situacao,
                 'Data_Ultima_Atualizacao': datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             }
             
@@ -231,29 +218,68 @@ with col1:
 
             salvar_dados(df)
             
-            # Mensagem de Feedback
-            if situacao in ["UPADO 🚀", "REBAIXADO 🔻", "MANTEVE ⚓"]:
-                 st.success(f"AVALIAÇÃO CONCLUÍDA! {usuario_input} | Novo Cargo: **{novo_cargo}** | Próximo Ciclo: Semana 1. (Resetado)")
-            else:
-                 st.success(f"Usuário {usuario_input} atualizado. Pontos Acumulados: {round(pts_acumulados_total, 2)}")
-                 
+            st.success(f"Dados salvos! Situação: {situacao} | Próximo Cargo: **{novo_cargo}**")
             st.rerun()
         else:
-            st.error("Digite um nome de usuário válido.")
+            st.error("Selecione ou digite um nome de usuário válido.")
+    
+    st.markdown("---")
+
+    # ------------------------------------------------------------------
+    # --- SEÇÃO: REMOÇÃO DE USUÁRIOS POR LISTA ---
+    # ------------------------------------------------------------------
+    st.subheader("Remover Usuários")
+    
+    if not df.empty:
+        opcoes_remocao = sorted(df['Usuario'].unique().tolist())
+        usuario_a_remover = st.selectbox("Selecione o Usuário para Remover", ['-- Selecione --'] + opcoes_remocao, key='remove_user_select')
+        
+        if usuario_a_remover != '-- Selecione --':
+            st.warning(f"Confirme a remoção de **{usuario_a_remover}**. Esta ação é permanente.")
             
-    # Botão de Limpeza Total
-    if st.button("🗑️ Limpar Tabela Inteira (Reset Total)") and st.checkbox("CONFIRMAR EXCLUSÃO TOTAL?"):
-        df = carregar_dados() # Cria um DF vazio
-        salvar_dados(df)
-        st.rerun()
+            if st.button(f"Confirmar Remoção de {usuario_a_remover}", type="secondary", key='final_remove_button'):
+                df = df[df['Usuario'] != usuario_a_remover]
+                salvar_dados(df)
+                st.success(f"Usuário {usuario_a_remover} removido com sucesso!")
+                st.rerun()
+    else:
+        st.info("Não há usuários na tabela para remover.")
+
+
+    st.markdown("---")
+
+    # --- RESET TOTAL ---
+    st.subheader("Reset Global")
+    
+    if 'confirm_reset' not in st.session_state:
+        st.session_state.confirm_reset = False
+
+    if st.button("Resetar Tabela INTEIRA"):
+        st.session_state.confirm_reset = True
+        
+    if st.session_state.confirm_reset:
+        st.warning("Tem certeza? Esta ação é irreversível e apagará TODOS os dados salvos.")
+        col_reset1, col_reset2 = st.columns(2)
+        
+        with col_reset1:
+            if st.button("SIM, ZERAR TUDO", type="secondary"):
+                df = carregar_dados().iloc[0:0]
+                salvar_dados(df)
+                st.success("Tabela zerada com sucesso!")
+                st.session_state.confirm_reset = False
+                st.rerun()
+        with col_reset2:
+            if st.button("NÃO, CANCELAR", type="secondary"):
+                st.session_state.confirm_reset = False
+                st.rerun()
+
 
 # --- ABA 2: VISUALIZAÇÃO DA TABELA ---
 with col2:
-    st.subheader("📊 Tabela de Acompanhamento")
+    st.subheader("Tabela de Acompanhamento")
     
     st.info(f"Total de Usuários: **{len(df)}** | Próxima Ação: Atualizar Semana e Salvar.")
     
-    # Exibir a Tabela Principal
     if not df.empty:
         df_display = df.sort_values(by=['Pts_Acumulados_Ciclo', 'Cargo'], 
                                     ascending=[False, True])
@@ -272,8 +298,25 @@ with col2:
         st.warning("Nenhum usuário cadastrado. Adicione um usuário na coluna ao lado.")
 
     st.markdown("---")
+
+    ## Nova Seção: Métricas de Atividade
+    
     if not df.empty:
+        # 1. Métricas Globais (Soma de todos os últimos registros)
+        st.subheader("Atividade Agregada do Grupo")
         total_msgs = df['Ultima_Semana_Msgs'].sum()
         total_call = df['Ultima_Semana_Horas'].sum()
-        st.metric("Total de Mensagens na Última Semana", total_msgs)
-        st.metric("Total de Horas em Call na Última Semana", total_call)
+        st.metric("Total Mensagens (Última Rodada)", total_msgs)
+        st.metric("Total Horas Call (Última Rodada)", total_call)
+        
+        # 2. Métricas Individuais (Filtradas pelo usuário selecionado na col1)
+        # O 'usuario_selecionado' vem da col1
+        if usuario_selecionado != '-- Novo Usuário --' and usuario_selecionado in df['Usuario'].values:
+            
+            dados_individuais = df[df['Usuario'] == usuario_selecionado].iloc[0]
+            
+            st.markdown("---")
+            st.subheader(f"Última Atividade de {usuario_selecionado}")
+            st.metric("Mensagens Registradas", dados_individuais['Ultima_Semana_Msgs'])
+            st.metric("Horas em Call Registradas", dados_individuais['Ultima_Semana_Horas'])
+```
