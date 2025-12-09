@@ -1,3 +1,17 @@
+Sim, com certeza\! Podemos adicionar uma **caixa visual e informativa** no `app_call.py` que lista as metas de UP e Manutenção de todos os cargos em ordem. Isso realmente melhora a clareza e a usabilidade.
+
+Vou implementar essa nova seção logo abaixo das abas de **"Adicionar Novo Membro"** e **"Upar"** no seu código.
+
+## 🛠️ Alterações em `app_call.py` (Adição da Tabela de Metas)
+
+Adicionei um novo bloco de código que:
+
+1.  Cria um `DataFrame` temporário a partir da lista `METAS_CALL`.
+2.  Formata esse `DataFrame` para exibição no Streamlit, usando `st.dataframe` dentro de um `st.expander` (para manter a interface limpa).
+
+Aqui está o código **completo e atualizado** de `app_call.py` com essa nova funcionalidade e todas as correções anteriores:
+
+```python
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -158,7 +172,7 @@ col1, col2 = st.columns([1, 2])
 with col1:
     st.subheader("Entrada de Dados e Gestão")
     
-    # MUDANÇA: Inversão da ordem das abas e alteração do título da segunda aba para "Upar"
+    # Ordem de abas invertida: Adicionar Membro | Upar
     tab_add, tab_update = st.tabs(["Adicionar Novo Membro", "Upar"])
 
     usuario_input = None
@@ -168,7 +182,7 @@ with col1:
         cargo_inicial_default = 0
 
 
-    # === ABA 1: ADICIONAR NOVO MEMBRO === (Agora a primeira aba)
+    # === ABA 1: ADICIONAR NOVO MEMBRO ===
     with tab_add:
         st.subheader("Registrar Novo Membro") 
         
@@ -201,7 +215,7 @@ with col1:
                  st.error("Digite o nome do novo membro.")
 
 
-    # === ABA 2: ATUALIZAR/UPAR MEMBRO EXISTENTE === (Agora a segunda aba)
+    # === ABA 2: ATUALIZAR/UPAR MEMBRO EXISTENTE ===
     with tab_update:
         
         opcoes_usuarios = ['-- Selecione o Membro --'] + sorted(df[col_usuario].unique().tolist()) 
@@ -223,7 +237,7 @@ with col1:
                     cargo_index_default = CARGOS_LISTA.index(cargo_atual_dados)
                     st.markdown(f"**Membro:** `{usuario_input}` | **Cargo Atual:** `{cargo_atual_dados}`")
                     
-                    # Lógica de correção de bug: valor inicial do number_input deve ser 1
+                    # Garantia contra StreamlitValueAboveMaxError: valor inicial do number_input deve ser 1
                     if dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
                         semana_input_value = 1
                         horas_acumuladas_anteriores = 0.0 
@@ -329,8 +343,32 @@ with col1:
         else:
             st.error("Selecione um membro válido antes de salvar.")
 
-
+    
+    # ----------------------------------------------------
+    # --- NOVO BLOCO: VISUALIZAÇÃO DE METAS ---
+    # ----------------------------------------------------
     st.markdown("---")
+    
+    # Cria um DataFrame de Metas para visualização
+    metas_data = []
+    for cargo, metas in METAS_CALL.items():
+        metas_data.append({
+            "Cargo": cargo,
+            "Meta UP (Horas)": metas['meta_up'],
+            "Meta Manter (Horas)": metas['meta_manter']
+        })
+    df_metas = pd.DataFrame(metas_data)
+
+    with st.expander("Tabela de Metas por Cargo (Horas Semanais) 📋"):
+        st.dataframe(
+            df_metas,
+            hide_index=True,
+            use_container_width=True,
+        )
+        
+    # ----------------------------------------------------
+    # --- FERRAMENTAS DE GESTÃO (Movido para após o bloco de Metas) ---
+    # ----------------------------------------------------
     st.subheader("Ferramentas de Gestão")
     with st.container(border=True):
         st.markdown("##### Remover Usuários")
@@ -401,3 +439,6 @@ with col2:
         total_call = df[col_horas_semana].sum()
         
         st.metric("Total Horas Call (Última Rodada)", f"{total_call:.1f}")
+```
+
+Basta substituir o conteúdo do seu `app_call.py` no GitHub por este código. A nova tabela de metas aparecerá na coluna da esquerda, logo acima das Ferramentas de Gestão.
