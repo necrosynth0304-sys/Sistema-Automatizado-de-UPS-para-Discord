@@ -380,7 +380,6 @@ with col_upar:
                     elif dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
                         # Se o DF mostra que o ciclo anterior terminou, sugere Semana 1
                         proxima_semana_sugerida = 1
-                        # Note: st.info não é mais exibido aqui para evitar repetição após o st.rerun
                         
                     else:
                         # Se o ciclo está em andamento, sugere a próxima semana
@@ -388,6 +387,20 @@ with col_upar:
                         if semana_atual_dados > total_semanas_ciclo_cargo_selecionado:
                             st.warning(f"O ciclo do cargo **{cargo_input}** está incompleto. Sugestão: Semana {total_semanas_ciclo_cargo_selecionado}.")
                             proxima_semana_sugerida = total_semanas_ciclo_cargo_selecionado
+                    
+                    # --- NOVO BLOCO: MÉTRICAS PESSOAIS ---
+                    st.markdown("---")
+                    st.markdown("##### Métricas Pessoais (Dados Atuais)")
+                    col_met_pessoal1, col_met_pessoal2, col_met_pessoal3 = st.columns(3)
+                    
+                    with col_met_pessoal1:
+                        st.metric("Pontos Acumulados", f"{pontos_acumulados_anteriores:.1f}")
+                    with col_met_pessoal2:
+                        st.metric("Última Pontuação Semanal", f"{dados_atuais[col_pontos_sem]:.1f}")
+                    with col_met_pessoal3:
+                        st.metric("Multiplicador Atual", f"{mult_ind_anterior:.1f}x")
+                    st.markdown("---")
+                    # -----------------------------------
                         
                     # 2. SEMANA DO CICLO (Permitindo Edição Manual)
                     # O valor inicial é baseado na lógica acima (proxima_semana_sugerida)
@@ -464,7 +477,7 @@ with col_upar:
                  # Se a semana é 1, mas o ciclo anterior não terminou, acumula
                  pontos_acumulados_a_somar = pontos_acumulados_anteriores
             elif semana_registrada_manual == 1 and dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
-                 # Se a semana é 1 e o ciclo anterior terminou, zera (aqui não deveria chegar, mas segurança)
+                 # Se a semana é 1 e o ciclo anterior terminou, zera
                  pontos_acumulados_a_somar = 0.0
             else:
                  pontos_acumulados_a_somar = pontos_acumulados_anteriores
@@ -501,7 +514,7 @@ with col_upar:
                         indice_atual = CARGOS_LISTA.index(cargo_input)
                         meta_up = METAS_PONTUACAO[cargo_input]['meta_up']
                         
-                        # --- CORREÇÃO CÁLCULO DE UP MÚLTIPLO ---
+                        # --- CÁLCULO DE UP MÚLTIPLO ---
                         multiplicador_up = max(1, int(pontos_acumulados_total / float(meta_up)))
                         
                         novo_indice = indice_atual + multiplicador_up
@@ -513,7 +526,7 @@ with col_upar:
                             # Se for o cargo máximo, calcula quantos níveis avançou para a mensagem de sucesso
                             multiplicador_up = len(CARGOS_LISTA) - 1 - indice_atual 
                             novo_cargo_para_tabela = CARGOS_LISTA[-1] 
-                        # --- FIM CORREÇÃO CÁLCULO DE UP MÚLTIPLO ---
+                        # --- FIM CÁLCULO DE UP MÚLTIPLO ---
                             
                     except ValueError:
                         pass 
@@ -602,9 +615,9 @@ with col_ranking:
 
     st.divider()
 
+    st.subheader("Métricas Agregadas")
+
     if not df.empty:
-        st.subheader("Métricas Agregadas")
-        
         total_pontos_sem = df[col_pontos_sem].sum()
         total_bonus_sem = df[col_pontos_sem].sum()
         
@@ -614,3 +627,5 @@ with col_ranking:
             st.metric("Total Pontos (Última Rodada)", f"{total_pontos_sem:.1f}")
         with col_met2:
             st.metric("Total Bônus (Última Rodada)", f"{total_bonus_sem:.1f}")
+    else:
+        st.info("Nenhuma métrica para agregar. Tabela vazia.")
