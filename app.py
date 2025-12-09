@@ -320,7 +320,7 @@ with col_upar:
             on_change=lambda: st.session_state.__setitem__('usuario_selecionado_id', st.session_state.select_user_update)
         )
         
-        # Atualiza o state com o valor recém-selecionado (útil se o on_change não for disparado)
+        # Atualiza o state com o valor recém-selecionado
         st.session_state.usuario_selecionado_id = usuario_selecionado
 
 
@@ -329,7 +329,10 @@ with col_upar:
             dados_atuais = df[df[col_usuario] == usuario_selecionado].iloc[0]
             usuario_input_upar = dados_atuais[col_usuario]
             
-            cargo_atual_dados = dados_atuais[col_cargo]
+            # --- CHAVE: LER O CARGO MAIS ATUALIZADO DO DATAFRAME ---
+            cargo_atual_dados = dados_atuais[col_cargo] 
+            # --------------------------------------------------------
+            
             pontos_acumulados_anteriores = dados_atuais[col_pontos_acum]
             semana_atual_dados = int(dados_atuais[col_sem]) # Esta é a próxima semana a ser registrada
             mult_ind_anterior = dados_atuais[col_mult_ind]
@@ -337,33 +340,38 @@ with col_upar:
             # Bloco de Informação do Membro
             with st.container():
                 if cargo_atual_dados in METAS_PONTUACAO:
+                    
+                    # Usa o cargo_atual_dados (lido do DataFrame recarregado) como default
                     cargo_index_default = CARGOS_LISTA.index(cargo_atual_dados)
                     total_semanas_ciclo_cargo = METAS_PONTUACAO[cargo_atual_dados]['ciclo']
                     
                     st.markdown(f"**Membro:** `{usuario_input_upar}` | **Cargo Atual:** `{cargo_atual_dados}`")
                     
                     # 1. CARGO ATUAL
+                    # Garante que a caixa de seleção inicie no cargo lido do DF (o novo cargo, se houver UP)
                     cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=cargo_index_default, key='cargo_select_update')
                     
-                    # Atualiza o total de semanas do ciclo baseado no cargo selecionado
+                    # Atualiza o total de semanas do ciclo baseado no cargo SELECIONADO (pode ser diferente do lido)
                     total_semanas_ciclo_cargo_selecionado = METAS_PONTUACAO.get(cargo_input, {'ciclo': 1})['ciclo']
                     
                     # Determina o valor sugerido para a semana de entrada
                     if dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
                         proxima_semana_sugerida = 1
-                        st.info(f"Ciclo finalizado. Registre a **Semana 1** do novo cargo (**{cargo_input}**).")
+                        # Mensagem clara sobre o resultado do ciclo anterior
+                        st.info(f"Ciclo finalizado ({dados_atuais[col_sit]}). Registre a **Semana 1** do cargo atual (**{cargo_input}**).")
                     else:
                         proxima_semana_sugerida = semana_atual_dados
                         if semana_atual_dados > total_semanas_ciclo_cargo_selecionado:
-                            st.warning(f"O ciclo do cargo **{cargo_input}** já deveria ter sido processado. Sugestão: Semana 1.")
+                            st.warning(f"O ciclo do cargo **{cargo_input}** está incompleto. Sugestão: Semana {total_semanas_ciclo_cargo_selecionado}.")
                             proxima_semana_sugerida = total_semanas_ciclo_cargo_selecionado
                         
                     # 2. SEMANA DO CICLO (Permitindo Edição Manual)
+                    # O valor de `semana_atual_dados` é a próxima semana a ser registrada
                     semana_input = st.number_input(
                         f"Semana do Ciclo (Máx: {total_semanas_ciclo_cargo_selecionado})", 
                         min_value=1, 
                         max_value=total_semanas_ciclo_cargo_selecionado, # Limita ao ciclo do cargo
-                        value=int(semana_atual_dados), 
+                        value=int(proxima_semana_sugerida), # Usa o valor do DF (ou 1, se UPADO/REBAIXADO)
                         key='semana_input_update'
                     )
                     
@@ -402,7 +410,7 @@ with col_upar:
         
         if usuario_input_upar is not None:
             
-            # Recarrega para garantir dados frescos
+            # Recarrega para garantir dados frescos (necessário para o DF na lógica de salvamento)
             df_reloaded = carregar_dados(SHEET_NAME_PRINCIPAL)
             
             dados_atuais = df_reloaded[df_reloaded[col_usuario] == st.session_state.select_user_update].iloc[0]
@@ -429,7 +437,6 @@ with col_upar:
             
             # Se a semana registrada for 1, consideramos que o usuário está iniciando um ciclo NOVO,
             # então zeramos os pontos acumulados ANTES de somar os pontos desta semana.
-            # Caso contrário, somamos aos pontos acumulados existentes.
             if semana_registrada_manual == 1:
                  pontos_acumulados_a_somar = 0.0
             else:
@@ -464,10 +471,15 @@ with col_upar:
                 novo_pontos_acumulados_para_tabela = 0.0 # Zera para o próximo ciclo
                 
                 if situacao_final == "UPADO":
-                    indice_atual = CARGOS_LISTA.index(cargo_input)
-                    if indice_atual < len(CARGOS_LISTA) - 1:
-                        novo_cargo_para_tabela = CARGOS_LISTA[indice_atual + 1]
-                    # Se for o último cargo, mantém.
+                    try:
+                        indice_atual = CARGOS_LISTA.index(cargo_input)
+                        # Avança um cargo
+                        if indice_atual < len(CARGOS_LISTA) - 1:
+                            novo_cargo_para_tabela = CARGOS_LISTA[indice_atual + 1]
+                        # Se for o último cargo, mantém o último cargo.
+                    except ValueError:
+                        pass # Não faz nada se o cargo for inválido
+
                         
                 elif situacao_final == "REBAIXADO":
                     try:
@@ -478,13 +490,13 @@ with col_upar:
                             novo_cargo_para_tabela = 'f*ck' # Cargo Mínimo
                     except ValueError:
                         novo_cargo_para_tabela = 'f*ck'
-            
-            # Se não é a última semana, o estado é simplesmente a próxima semana do ciclo atual
+
+                # Se for MANTEVE, o cargo_input (cargo atual) já está correto.
             
             # 4. Prepara os novos dados
             novo_dado = {
                 col_usuario: usuario_input_upar, 
-                col_cargo: novo_cargo_para_tabela, # Cargo após UP/REBAIXAR
+                col_cargo: novo_cargo_para_tabela, # Cargo após UP/REBAIXAR (será o cargo do próximo ciclo)
                 col_sit: situacao_para_tabela, # Situação final (UPADO, REBAIXADO ou Em andamento X/Y)
                 col_sem: nova_semana_para_tabela, # Próxima semana (1 se ciclo terminou, X+1 se em andamento)
                 col_pontos_acum: round(novo_pontos_acumulados_para_tabela, 1), 
@@ -501,6 +513,7 @@ with col_upar:
             if salvar_dados(df, SHEET_NAME_PRINCIPAL):
                 st.session_state.usuario_selecionado_id = usuario_input_upar # Persiste o usuário selecionado
                 st.success(f"Dados salvos! Situação: {situacao_para_tabela} | Próximo Cargo: **{novo_cargo_para_tabela}**")
+                # O RERUN vai forçar o recarregamento do DF e a interface lerá o novo cargo/status.
                 st.rerun()
         else:
             st.error("Selecione um membro válido antes de salvar.")
