@@ -3,32 +3,47 @@ import pandas as pd
 import os
 from datetime import datetime
 
-# --- CONFIGURAÇÃO DAS REGRAS DO SISTEMA (Base Final) ---
+# --- CONFIGURAÇÃO DAS REGRAS DO SISTEMA (NOVAS HIERARQUIAS) ---
 
-# 1. Metas de Pontuação e Ciclo
 METAS = {
-    'god':   {'ciclo': 4, 'meta_pts': 1335, 'manter': 1234},
-    'all':   {'ciclo': 4, 'meta_pts': 1135, 'manter': 969},
-    'boss':  {'ciclo': 3, 'meta_pts': 725,  'manter': 500},
-    'upper': {'ciclo': 3, 'meta_pts': 550,  'manter': 420},
-    'sad':   {'ciclo': 3, 'meta_pts': 420,  'manter': 325},
-    'big':   {'ciclo': 2, 'meta_pts': 169,  'manter': 130},
-    'damn':  {'ciclo': 2, 'meta_pts': 130,  'manter': 104},
-    'power': {'ciclo': 2, 'meta_pts': 91,   'manter': 78},
-    'root':  {'ciclo': 1, 'meta_pts': 27,   'manter': 20},
-    'low':   {'ciclo': 1, 'meta_pts': 20,   'manter': 13},
+    # 1. Substitui 'low'
+    'f*ck':    {'ciclo': 1, 'meta_pts': 20,   'manter': 13}, 
+    # 2. Substitui 'root'
+    '100%':    {'ciclo': 1, 'meta_pts': 27,   'manter': 20},
+    # 3. Substitui 'power'
+    'woo':     {'ciclo': 2, 'meta_pts': 91,   'manter': 78},
+    # 4. Substitui 'damn'
+    'sex':     {'ciclo': 2, 'meta_pts': 130,  'manter': 104},
+    # 5. Substitui 'big'
+    '?':       {'ciclo': 2, 'meta_pts': 169,  'manter': 130},
+    # 6. Substitui 'sad'
+    '!':       {'ciclo': 3, 'meta_pts': 420,  'manter': 325},
+    # 7. Substitui 'upper'
+    'aura':    {'ciclo': 3, 'meta_pts': 550,  'manter': 420},
+    # 8. Substitui 'boss'
+    'all wild':{'ciclo': 3, 'meta_pts': 725,  'manter': 500},
+    # 9. Substitui 'all'
+    'cute':    {'ciclo': 4, 'meta_pts': 1135, 'manter': 969},
+    # 10. Substitui 'god'
+    '$':       {'ciclo': 4, 'meta_pts': 1335, 'manter': 1234}, 
+    
+    # NOVOS NÍVEIS SUPERIORES (Novas Metas)
+    'void':    {'ciclo': 4, 'meta_pts': 1600, 'manter': 1450},
+    'dawn':    {'ciclo': 4, 'meta_pts': 1900, 'manter': 1700},
+    'upper':   {'ciclo': 4, 'meta_pts': 2500, 'manter': 2200}, # O novo Topo
 }
 
-# 2. Sequência de Promoção
+# Sequência de Promoção
 CARGOS_LISTA = list(METAS.keys())
 
 # Configuração de Arquivo e Opções
 ARQUIVO_DADOS = 'sistema_cargos_final.csv'
 OPCOES_DESAFIO = ["Nenhum", "Engajamento (2.0x Call)", "Mensagens (1.5x)", "Presença (1.5x)"]
 
-# --- FUNÇÕES DE DADOS E LÓGICA ---
+# --- FUNÇÕES DE DADOS E LÓGICA (CARREGAMENTO CSV LOCAL RESTABELECIDO) ---
 
 def carregar_dados():
+    """Carrega dados do arquivo CSV local."""
     colunas = [
         'Usuario', 'Cargo', 'Semana_Atual', 'Pts_Acumulados_Ciclo', 
         'Ultima_Semana_Msgs', 'Ultima_Semana_Horas', 'Pts_Semana', 
@@ -40,11 +55,17 @@ def carregar_dados():
     df = pd.read_csv(ARQUIVO_DADOS)
     for col in colunas:
         if col not in df.columns:
+            # Garante que colunas ausentes sejam preenchidas com valores padrão
             df[col] = df[colunas[0]].apply(lambda x: 0 if 'Pts' in col or 'Semana' in col else 'N/A')
+            
+    # Converte colunas importantes para o tipo correto após leitura
+    for col in ['Semana_Atual', 'Pts_Acumulados_Ciclo', 'Ultima_Semana_Msgs', 'Ultima_Semana_Horas', 'Pts_Semana', 'Pts_Total_Final']:
+        df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
             
     return df
 
 def salvar_dados(df):
+    """Salva dados no arquivo CSV local."""
     df.to_csv(ARQUIVO_DADOS, index=False)
 
 def calcular_pontos_semana(msgs, horas, rush_hour, desafio_tipo, participou_desafio):
@@ -71,13 +92,12 @@ def avaliar_situacao(cargo, pts_acumulados, semana_atual):
     ciclo_max = meta['ciclo']
     
     situacao = ""
-    fator_multiplicacao = 0 # Fator F = quantas vezes a meta foi atingida
+    fator_multiplicacao = 0 
     
     if semana_atual >= ciclo_max:
         if pts_acumulados >= meta_area:
             situacao = "UPADO"
             
-            # Calcula o fator de multiplicação (mínimo 1 se UPADO)
             fator_multiplicacao = int(pts_acumulados // meta_area)
             if fator_multiplicacao < 1: fator_multiplicacao = 1
                 
@@ -88,7 +108,7 @@ def avaliar_situacao(cargo, pts_acumulados, semana_atual):
     else:
         situacao = f"Em andamento ({semana_atual}/{ciclo_max})"
         
-    return situacao, fator_multiplicacao # Retorna a situação e o fator
+    return situacao, fator_multiplicacao
 
 # --- INTERFACE (STREAMLIT) ---
 
@@ -108,35 +128,45 @@ col1, col2 = st.columns([1, 2])
 with col1:
     st.subheader("Entrada de Dados Semanais")
     
+    if CARGOS_LISTA:
+        cargo_inicial_default = CARGOS_LISTA.index('f*ck')
+    else:
+        cargo_inicial_default = 0
+        
     opcoes_usuarios = ['-- Novo Usuário --'] + sorted(df['Usuario'].unique().tolist())
     usuario_selecionado = st.selectbox("Selecione/Adicione o Usuário", opcoes_usuarios, key='select_user')
     
-    cargo_atual_dados = CARGOS_LISTA[-1] 
+    cargo_atual_dados = 'f*ck'
     semana_input_value = 1
     pts_acumulados_anteriores = 0.0
-    cargo_index_default = CARGOS_LISTA.index('low')
+    cargo_index_default = cargo_inicial_default
 
-    if usuario_selecionado != '-- Novo Usuário --':
+    if usuario_selecionado != '-- Novo Usuário --' and not df.empty and usuario_selecionado in df['Usuario'].values:
         dados_atuais = df[df['Usuario'] == usuario_selecionado].iloc[0]
         usuario_input = st.text_input("Nome do Usuário", value=dados_atuais['Usuario'], disabled=True)
         
         cargo_atual_dados = dados_atuais['Cargo']
         pts_acumulados_anteriores = dados_atuais['Pts_Acumulados_Ciclo']
         semana_atual = dados_atuais['Semana_Atual']
-        ciclo_max = METAS[cargo_atual_dados]['ciclo']
-        cargo_index_default = CARGOS_LISTA.index(cargo_atual_dados)
         
-        st.info(f"Ciclo atual: **{cargo_atual_dados}** ({semana_atual}/{ciclo_max} semanas)")
-        
-        if dados_atuais['Situação'] in ["UPADO", "REBAIXADO", "MANTEVE"]:
-            proxima_semana = 1
-            pts_acumulados_anteriores = 0.0 
-            st.warning("Usuário finalizou o ciclo. Próximo registro será na **Semana 1** do novo cargo.")
-        else:
-            proxima_semana = semana_atual + 1
-            if proxima_semana > ciclo_max: proxima_semana = ciclo_max
+        if cargo_atual_dados in METAS:
+            ciclo_max = METAS[cargo_atual_dados]['ciclo']
+            cargo_index_default = CARGOS_LISTA.index(cargo_atual_dados)
+            st.info(f"Ciclo atual: **{cargo_atual_dados}** ({semana_atual}/{ciclo_max} semanas)")
             
-        semana_input_value = int(proxima_semana)
+            if dados_atuais['Situação'] in ["UPADO", "REBAIXADO", "MANTEVE"]:
+                proxima_semana = 1
+                pts_acumulados_anteriores = 0.0 
+                st.warning(f"Usuário finalizou o ciclo. Próximo registro será na **Semana 1** do novo cargo ({dados_atuais['Cargo']}).")
+            else:
+                proxima_semana = semana_atual + 1
+                if proxima_semana > ciclo_max: proxima_semana = ciclo_max
+                
+            semana_input_value = int(proxima_semana)
+        else:
+            ciclo_max = 1
+            st.error(f"Cargo '{cargo_atual_dados}' desconhecido. Revertendo para 'f*ck'.")
+            
         
         semana_input = st.number_input(f"Próxima Semana do Ciclo (Máx: {ciclo_max})", 
                                        min_value=1, max_value=ciclo_max, value=semana_input_value, key='semana_input')
@@ -144,7 +174,7 @@ with col1:
 
     else:
         usuario_input = st.text_input("Nome do Usuário")
-        cargo_input = st.selectbox("Cargo Inicial", CARGOS_LISTA, index=CARGOS_LISTA.index('low'))
+        cargo_input = st.selectbox("Cargo Inicial", CARGOS_LISTA, index=cargo_inicial_default)
         semana_input = st.number_input("Semana do Ciclo (Sempre comece na 1)", min_value=1, value=1)
 
 
@@ -168,6 +198,11 @@ with col1:
             
             # --- Lógica de Cálculo e Avaliação ---
             pts_semana_multi = calcular_pontos_semana(msgs_input, horas_input, check_rush, tipo_desafio, check_desafio)
+            
+            if cargo_input not in METAS:
+                 st.error(f"Cargo '{cargo_input}' inválido nas METAS.")
+                 st.stop()
+                 
             meta_do_cargo = METAS[cargo_input]['meta_pts']
             pts_semana_final = pts_semana_multi
             if weekend_ativo and pts_semana_multi >= (meta_do_cargo * 0.70):
@@ -176,54 +211,50 @@ with col1:
 
             pts_acumulados_total = pts_acumulados_anteriores + pts_semana_final
             
-            # Recebe a situação E o fator de multiplicação
             situacao, fator_multiplicacao = avaliar_situacao(cargo_input, pts_acumulados_total, semana_input)
 
             novo_cargo = cargo_input 
             
-            # Determina a próxima semana e o novo acumulado APÓS a avaliação
             if situacao in ["UPADO", "REBAIXADO", "MANTEVE"]:
                 nova_semana = 1
                 novo_pts_acumulados = 0.0
                 
-                # --- Lógica de UP Múltiplo LIMITADO (CORRIGIDA) ---
+                # --- Lógica de UP Múltiplo LIMITADO (CORRIGIDA PARA NOVOS NOMES) ---
                 if situacao == "UPADO":
                     indice_atual = CARGOS_LISTA.index(cargo_input)
                     niveis_a_avancar = 1 # Padrão: 1 nível
                     
-                    if cargo_input == 'low':
+                    if cargo_input == 'f*ck':
                         if fator_multiplicacao >= 3:
-                            # Low triplicou a meta -> Máximo: 'damn' (3 níveis)
-                            indice_limite = CARGOS_LISTA.index('damn')
+                            # f*ck triplicou a meta -> Máximo: 'sex' (3 níveis)
+                            indice_limite = CARGOS_LISTA.index('sex')
                             niveis_a_avancar = indice_limite - indice_atual
                         elif fator_multiplicacao == 2:
-                            # Low duplicou a meta -> Máximo: 'power' (2 níveis)
-                            indice_limite = CARGOS_LISTA.index('power')
+                            # f*ck duplicou a meta -> Máximo: 'woo' (2 níveis)
+                            indice_limite = CARGOS_LISTA.index('woo')
                             niveis_a_avancar = indice_limite - indice_atual
-                        # Se fator_multiplicacao for 1, o avanço é 1 ('root')
                         
-                    elif cargo_input == 'root':
+                    elif cargo_input == '100%':
                         if fator_multiplicacao >= 3:
-                            # Root triplicou a meta -> Máximo: 'big' (3 níveis)
-                            indice_limite = CARGOS_LISTA.index('big')
+                            # 100% triplicou a meta -> Máximo: '?' (3 níveis)
+                            indice_limite = CARGOS_LISTA.index('?')
                             niveis_a_avancar = indice_limite - indice_atual
                         elif fator_multiplicacao == 2:
-                            # Root duplicou a meta -> Máximo: 'damn' (2 níveis)
-                            indice_limite = CARGOS_LISTA.index('damn')
+                            # 100% duplicou a meta -> Máximo: 'sex' (2 níveis)
+                            indice_limite = CARGOS_LISTA.index('sex')
                             niveis_a_avancar = indice_limite - indice_atual
-                        # Se fator_multiplicacao for 1, o avanço é 1 ('power')
 
-                    # Aplica o avanço e garante que não passe de 'god'
+                    # Aplica o avanço e garante que não passe do último cargo ('upper')
                     novo_indice = indice_atual + niveis_a_avancar
                     
                     if novo_indice >= len(CARGOS_LISTA) - 1:
-                        novo_cargo = CARGOS_LISTA[-1] # 'god'
+                        novo_cargo = CARGOS_LISTA[-1] # 'upper'
                     else:
                         novo_cargo = CARGOS_LISTA[novo_indice]
                         
                     if niveis_a_avancar > 1:
                         st.balloons()
-                        st.warning(f"UP MÚLTIPLO ATIVADO! O usuário subiu {niveis_a_avancar} níveis!")
+                        st.warning(f"UP MÚLTIPLO ATIVADO! O usuário subiu {niveis_a_avancar} níveis para o cargo **{novo_cargo}**!")
                         
                 elif situacao == "REBAIXADO":
                     try:
@@ -231,9 +262,9 @@ with col1:
                         if indice_atual > 0:
                             novo_cargo = CARGOS_LISTA[indice_atual - 1]
                         else:
-                            novo_cargo = 'low'
+                            novo_cargo = 'f*ck'
                     except ValueError:
-                        novo_cargo = 'low'
+                        novo_cargo = 'f*ck'
             else:
                 nova_semana = semana_input + 1
                 if nova_semana > METAS[cargo_input]['ciclo']:
@@ -256,7 +287,7 @@ with col1:
             else:
                 df = pd.concat([df, pd.DataFrame([novo_dado])], ignore_index=True)
 
-            salvar_dados(df)
+            salvar_dados(df) # Salva no CSV Local
             
             st.success(f"Dados salvos! Situação: {situacao} | Próximo Cargo: **{novo_cargo}**")
             st.rerun()
@@ -279,7 +310,7 @@ with col1:
             
             if st.button(f"Confirmar Remoção de {usuario_a_remover}", type="secondary", key='final_remove_button'):
                 df = df[df['Usuario'] != usuario_a_remover]
-                salvar_dados(df)
+                salvar_dados(df) # Salva no CSV Local
                 st.success(f"Usuário {usuario_a_remover} removido com sucesso!")
                 st.rerun()
     else:
@@ -303,8 +334,8 @@ with col1:
         
         with col_reset1:
             if st.button("SIM, ZERAR TUDO", type="secondary"):
-                df = carregar_dados().iloc[0:0]
-                salvar_dados(df)
+                df_reset = pd.DataFrame(columns=df.columns) 
+                salvar_dados(df_reset) # Salva o DF vazio no CSV Local
                 st.success("Tabela zerada com sucesso!")
                 st.session_state.confirm_reset = False
                 st.rerun()
@@ -342,14 +373,19 @@ with col2:
     ## Nova Seção: Métricas de Atividade
     
     if not df.empty:
-        # 1. Métricas Globais (Soma de todos os últimos registros)
         st.subheader("Atividade Agregada do Grupo")
+        
+        # Garante que as colunas são numéricas
+        df['Ultima_Semana_Msgs'] = pd.to_numeric(df['Ultima_Semana_Msgs'], errors='coerce').fillna(0)
+        df['Ultima_Semana_Horas'] = pd.to_numeric(df['Ultima_Semana_Horas'], errors='coerce').fillna(0)
+
         total_msgs = df['Ultima_Semana_Msgs'].sum()
         total_call = df['Ultima_Semana_Horas'].sum()
+        
         st.metric("Total Mensagens (Última Rodada)", total_msgs)
         st.metric("Total Horas Call (Última Rodada)", total_call)
         
-        # 2. Métricas Individuais (Filtradas pelo usuário selecionado na col1)
+        # 2. Métricas Individuais
         if usuario_selecionado != '-- Novo Usuário --' and usuario_selecionado in df['Usuario'].values:
             
             dados_individuais = df[df['Usuario'] == usuario_selecionado].iloc[0]
