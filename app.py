@@ -384,16 +384,8 @@ with col_upar:
                     
                     st.markdown(f"**Membro Selecionado:** `{usuario_input_upar}`") 
                     
-                    # 🚀 AQUI: EXIBIÇÃO APENAS DE VISUALIZAÇÃO E DESTAQUE (Cor Verde) 
-                    # Usa HTML para aplicar um fundo verde claro (similar ao st.success)
-                    st.markdown(
-                        f"""
-                        <div style="background-color: #e6ffed; padding: 5px; border-radius: 5px; margin-bottom: 10px;">
-                            <strong>ID do Usuário:</strong> <code>{user_id_atual}</code>
-                        </div>
-                        """, 
-                        unsafe_allow_html=True
-                    )
+                    # 🚀 AQUI: EXIBIÇÃO APENAS DE VISUALIZAÇÃO COM st.info (Estilo Limpo)
+                    st.info(f"**ID do Usuário:** `{user_id_atual}`") 
                     
                     # 1. CARGO ATUAL
                     cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=cargo_index_default, key='cargo_select_update')
