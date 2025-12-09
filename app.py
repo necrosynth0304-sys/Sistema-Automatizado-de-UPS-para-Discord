@@ -318,5 +318,3 @@ with col2:
             st.subheader(f"Última Atividade de {usuario_selecionado}")
             st.metric("Mensagens Registradas", dados_individuais['Ultima_Semana_Msgs'])
             st.metric("Horas em Call Registradas", dados_individuais['Ultima_Semana_Horas'])
-```
-
