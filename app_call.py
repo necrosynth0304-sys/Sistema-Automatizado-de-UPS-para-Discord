@@ -2,8 +2,8 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime
 import os 
-import gspread # Assumindo que dependências estão instaladas
-from google.oauth2.service_account import Credentials # Assumindo que dependências estão instaladas
+import gspread 
+from google.oauth2.service_account import Credentials 
 
 
 # --- CONFIGURAÇÃO DAS REGRAS (Foco em Horas de Call) ---
@@ -38,12 +38,13 @@ def get_gsheets_client():
         credentials = Credentials.from_service_account_info(creds_json, scopes=scopes)
         return gspread.authorize(credentials)
     except Exception as e:
-        st.error(f"Erro de conexão com Google Sheets: {e}")
+        # Apenas registra o erro na sessão para evitar quebrar a app no início
+        st.session_state['gsheets_error'] = f"Erro de conexão com Google Sheets: {e}"
         return None
 
 gc = get_gsheets_client()
 
-# --- CONSTANTES DE COLUNAS (Adaptadas) ---
+# --- CONSTANTES DE COLUNAS ---
 
 COLUNAS_PADRAO = [
     'usuario', 'cargo', 'situação', 'Semana_Atual', 
@@ -57,18 +58,19 @@ col_sit = 'situação'
 col_sem = 'Semana_Atual'
 col_horas_acum = 'Horas_Acumuladas_Ciclo'
 col_horas_semana = 'Horas_Semana'
-col_horas_final = 'Horas_Total_Final' # Total acumulado geral
+col_horas_final = 'Horas_Total_Final' 
 
 
 @st.cache_data(ttl=5) 
 def carregar_dados():
     """Lê os dados da planilha Google (worksheet ESPECÍFICA para CALL)."""
     if gc is None:
+        if 'gsheets_error' in st.session_state:
+             st.error(st.session_state['gsheets_error'])
         return pd.DataFrame(columns=COLUNAS_PADRAO)
         
     try:
         SPREADSHEET_URL = st.secrets["gsheets_config"]["spreadsheet_url"]
-        # ATENÇÃO: Use um nome de aba DIFERENTE para o sistema de call, por exemplo:
         SHEET_NAME = "Call_Ranking" 
         
         sh = gc.open_by_url(SPREADSHEET_URL)
@@ -101,7 +103,7 @@ def salvar_dados(df):
 
     try:
         SPREADSHEET_URL = st.secrets["gsheets_config"]["spreadsheet_url"]
-        SHEET_NAME = "Call_Ranking" # Nome da aba específica para CALL
+        SHEET_NAME = "Call_Ranking" 
         
         sh = gc.open_by_url(SPREADSHEET_URL)
         worksheet = sh.worksheet(SHEET_NAME)
@@ -156,10 +158,9 @@ col1, col2 = st.columns([1, 2])
 with col1:
     st.subheader("Entrada de Dados e Gestão")
     
-    # Abas simplificadas
-    tab_update, tab_add = st.tabs(["Atualizar Semana", "Adicionar Novo Membro"])
+    # MUDANÇA: Inversão da ordem das abas e alteração do título da segunda aba para "Upar"
+    tab_add, tab_update = st.tabs(["Adicionar Novo Membro", "Upar"])
 
-    # --- Variáveis de estado iniciais ---
     usuario_input = None
     if CARGOS_LISTA:
         cargo_inicial_default = CARGOS_LISTA.index('f*ck')
@@ -167,7 +168,40 @@ with col1:
         cargo_inicial_default = 0
 
 
-    # === ABA 1: ATUALIZAR MEMBRO EXISTENTE ===
+    # === ABA 1: ADICIONAR NOVO MEMBRO === (Agora a primeira aba)
+    with tab_add:
+        st.subheader("Registrar Novo Membro") 
+        
+        usuario_input_add = st.text_input("Nome do Novo Usuário", key='usuario_input_add')
+        cargo_input_add = st.selectbox("Cargo Inicial", CARGOS_LISTA, index=cargo_inicial_default, key='cargo_select_add')
+        
+        st.markdown("---")
+        if st.button("Adicionar Membro", type="secondary", use_container_width=True):
+            if usuario_input_add:
+                if usuario_input_add in df[col_usuario].values:
+                    st.error(f"O membro '{usuario_input_add}' já existe. Use a aba 'Upar'.")
+                else:
+                    novo_dado_add = {
+                        col_usuario: usuario_input_add, 
+                        col_cargo: cargo_input_add, 
+                        col_sit: f"Em andamento (1/1)",
+                        col_sem: 1,
+                        col_horas_acum: 0.0, 
+                        col_horas_semana: 0.0,
+                        'Data_Ultima_Atualizacao': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+                        col_horas_final: 0.0,
+                    }
+                    
+                    df = pd.concat([df, pd.DataFrame([novo_dado_add])], ignore_index=True)
+                    
+                    if salvar_dados(df):
+                        st.success(f"Membro **{usuario_input_add}** adicionado! Use a aba 'Upar' para registrar a primeira semana.")
+                        st.rerun()
+            else:
+                 st.error("Digite o nome do novo membro.")
+
+
+    # === ABA 2: ATUALIZAR/UPAR MEMBRO EXISTENTE === (Agora a segunda aba)
     with tab_update:
         
         opcoes_usuarios = ['-- Selecione o Membro --'] + sorted(df[col_usuario].unique().tolist()) 
@@ -189,14 +223,14 @@ with col1:
                     cargo_index_default = CARGOS_LISTA.index(cargo_atual_dados)
                     st.markdown(f"**Membro:** `{usuario_input}` | **Cargo Atual:** `{cargo_atual_dados}`")
                     
+                    # Lógica de correção de bug: valor inicial do number_input deve ser 1
                     if dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
-                        proxima_semana = 1
+                        semana_input_value = 1
                         horas_acumuladas_anteriores = 0.0 
                         st.info("Ciclo finalizado. O próximo registro será na **Semana 1** do novo cargo.")
                     else:
-                        proxima_semana = semana_atual + 1
+                        semana_input_value = 1 
                         
-                    semana_input_value = int(proxima_semana)
                 else:
                     st.error(f"Cargo '{cargo_atual_dados}' desconhecido. Revertendo para 'f*ck'.")
                     semana_input_value = 1
@@ -211,7 +245,6 @@ with col1:
             cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=cargo_index_default, key='cargo_select_update')
 
             st.markdown("##### Horas em Call Semanal")
-            # Apenas 1 campo de entrada de dados (Horas)
             horas_input = st.number_input("Horas em Call NESTA SEMANA", min_value=0.0, value=0.0, step=0.5, key='horas_input_update')
             
             st.markdown("---")
@@ -221,38 +254,6 @@ with col1:
         else:
             st.info("Selecione um membro acima para registrar a pontuação da semana.")
             usuario_input = None
-            
-    # === ABA 2: ADICIONAR NOVO MEMBRO (Lógica Mantida) ===
-    with tab_add:
-        st.subheader("Registrar Novo Membro") 
-        
-        usuario_input_add = st.text_input("Nome do Novo Usuário", key='usuario_input_add')
-        cargo_input_add = st.selectbox("Cargo Inicial", CARGOS_LISTA, index=cargo_inicial_default, key='cargo_select_add')
-        
-        st.markdown("---")
-        if st.button("Adicionar Membro", type="secondary", use_container_width=True):
-            if usuario_input_add:
-                if usuario_input_add in df[col_usuario].values:
-                    st.error(f"O membro '{usuario_input_add}' já existe. Use a aba 'Atualizar Semana'.")
-                else:
-                    novo_dado_add = {
-                        col_usuario: usuario_input_add, 
-                        col_cargo: cargo_input_add, 
-                        col_sit: f"Em andamento (1/1)",
-                        col_sem: 1,
-                        col_horas_acum: 0.0, 
-                        col_horas_semana: 0.0,
-                        'Data_Ultima_Atualizacao': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        col_horas_final: 0.0,
-                    }
-                    
-                    df = pd.concat([df, pd.DataFrame([novo_dado_add])], ignore_index=True)
-                    
-                    if salvar_dados(df):
-                        st.success(f"Membro **{usuario_input_add}** adicionado! Use a aba 'Atualizar Semana' para registrar a primeira semana.")
-                        st.rerun()
-            else:
-                 st.error("Digite o nome do novo membro.")
 
 
     # ----------------------------------------------------
@@ -264,15 +265,14 @@ with col1:
         
         if usuario_input is not None:
             
-            # Recaptura dos dados de sessão e recarregamento do DF
             df_reloaded = carregar_dados() 
             dados_atuais = df_reloaded[df_reloaded[col_usuario] == st.session_state.select_user_update].iloc[0]
-            horas_acumuladas_anteriores = dados_atuais[col_horas_acum]
+            horas_acumuladas_anteriores = dados_atuais[col_horas_acum] 
 
             usuario_input = dados_atuais[col_usuario]
             cargo_input = st.session_state.cargo_select_update
             semana_input = st.session_state.semana_input_update
-            horas_input = st.session_state.horas_input_update # Horas desta semana
+            horas_input = st.session_state.horas_input_update 
             
             # --- Lógica de Cálculo e Avaliação ---
             
@@ -285,7 +285,7 @@ with col1:
             # Lógica de UP/REBAIXAR
             if situacao in ["UPADO", "REBAIXADO", "MANTEVE"]:
                 nova_semana = 1
-                novo_horas_acumuladas = 0.0
+                novo_horas_acumuladas = 0.0 # Zera para o próximo ciclo
                 
                 if situacao == "UPADO":
                     indice_atual = CARGOS_LISTA.index(cargo_input)
@@ -304,7 +304,6 @@ with col1:
                     except ValueError:
                         novo_cargo = 'f*ck'
             else:
-                # Se ainda estivesse em andamento (o que não deve ocorrer neste sistema de 1 semana)
                 nova_semana = 1
                 novo_horas_acumuladas = horas_acumuladas_total
 
@@ -318,7 +317,7 @@ with col1:
                 col_horas_acum: round(novo_horas_acumuladas, 1), 
                 col_horas_semana: round(horas_input, 1),
                 'Data_Ultima_Atualizacao': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                col_horas_final: round(horas_acumuladas_total, 1),
+                col_horas_final: round(dados_atuais[col_horas_final] + horas_input, 1), 
             }
             
             # Atualiza o DataFrame e salva
@@ -333,7 +332,6 @@ with col1:
 
     st.markdown("---")
     st.subheader("Ferramentas de Gestão")
-    # Lógica de Remoção e Reset (MANTIDA, mas simplificada)
     with st.container(border=True):
         st.markdown("##### Remover Usuários")
         
