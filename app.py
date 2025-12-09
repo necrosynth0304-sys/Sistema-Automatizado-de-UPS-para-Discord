@@ -185,6 +185,7 @@ else:
     
 usuario_input_upar = None
 
+
 # =========================================================================
 # === COLUNA 1: FERRAMENTAS DE GESTÃO (Adicionar/Remover/Reset) ===
 # =========================================================================
@@ -268,7 +269,33 @@ with col_ferramentas:
 # === COLUNA 2: UPAR (Entrada de Dados/Registro da Semana) ===
 # =========================================================================
 with col_upar:
-    st.subheader("Upar (Entrada de Dados)")
+    st.subheader("Upar (Registro de Dados)")
+    
+    # ----------------------------------------------------
+    # --- BLOCO: VISUALIZAÇÃO SIMPLES DE METAS (AGORA NO TOPO) ---
+    # ----------------------------------------------------
+    
+    # Cria um DataFrame de Metas para visualização
+    metas_data_pontos_simples = []
+    
+    for cargo, metas in METAS_PONTUACAO.items():
+        metas_data_pontos_simples.append({
+            "Cargo": cargo,
+            "Ciclo (Semanas)": metas['ciclo'],
+            "Meta UP (Pts)": metas['meta_up'],
+            "Meta Manter (Pts)": metas['meta_manter']
+        })
+        
+    df_metas_pontos_simples = pd.DataFrame(metas_data_pontos_simples)
+
+    with st.expander("Tabela de Metas (Ciclos e Pontos) 📋", expanded=False):
+        st.dataframe(
+            df_metas_pontos_simples,
+            hide_index=True,
+            use_container_width=True,
+        )
+    
+    st.markdown("---")
     
     # Entrada de Dados
     with st.container(border=True):
@@ -427,33 +454,6 @@ with col_upar:
                 st.rerun()
         else:
             st.error("Selecione um membro válido antes de salvar.")
-
-    
-    # ----------------------------------------------------
-    # --- BLOCO: VISUALIZAÇÃO SIMPLES DE METAS (na seção Upar) ---
-    # ----------------------------------------------------
-    st.markdown("---")
-    
-    st.markdown("##### Tabela de Metas por Cargo")
-    
-    metas_data_pontos_simples = []
-    
-    for cargo, metas in METAS_PONTUACAO.items():
-        metas_data_pontos_simples.append({
-            "Cargo": cargo,
-            "Ciclo (Semanas)": metas['ciclo'],
-            "Meta UP (Pts)": metas['meta_up'],
-            "Meta Manter (Pts)": metas['meta_manter']
-        })
-        
-    df_metas_pontos_simples = pd.DataFrame(metas_data_pontos_simples)
-
-    with st.expander("Expandir Tabela de Metas 📋", expanded=False):
-        st.dataframe(
-            df_metas_pontos_simples,
-            hide_index=True,
-            use_container_width=True,
-        )
 
 
 # =========================================================================
