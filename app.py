@@ -172,9 +172,6 @@ if 'salvar_button_clicked' not in st.session_state:
     st.session_state.salvar_button_clicked = False
 
 # REORGANIZAÇÃO DE COLUNAS: 
-# Coluna 1: Ferramentas de Gestão
-# Coluna 2: Entrada de Dados / Upar
-# Coluna 3: Tabela de Acompanhamento (Ranking)
 col_ferramentas, col_upar, col_ranking = st.columns([1, 1.2, 2])
 
 # Variável para cargo inicial (usada nas Ferramentas e Upar)
@@ -204,10 +201,13 @@ with col_ferramentas:
                 if usuario_input_add in df[col_usuario].values:
                     st.error(f"O membro '{usuario_input_add}' já existe.")
                 else:
+                    # Define o ciclo inicial (1/Total)
+                    total_ciclo_add = METAS_PONTUACAO.get(cargo_input_add, {'ciclo': 3})['ciclo']
+                    
                     novo_dado_add = {
                         col_usuario: usuario_input_add, 
                         col_cargo: cargo_input_add, 
-                        col_sit: f"Em andamento (1/{METAS_PONTUACAO.get(cargo_input_add, {'ciclo': 3})['ciclo']})",
+                        col_sit: f"Em andamento (1/{total_ciclo_add})",
                         col_sem: 1,
                         col_pontos_acum: 0.0, 
                         col_pontos_sem: 0.0,
@@ -310,7 +310,7 @@ with col_upar:
             
             cargo_atual_dados = dados_atuais[col_cargo]
             pontos_acumulados_anteriores = dados_atuais[col_pontos_acum]
-            semana_atual = int(dados_atuais[col_sem])
+            semana_atual_dados = int(dados_atuais[col_sem])
             mult_ind_anterior = dados_atuais[col_mult_ind]
             
             # Bloco de Informação do Membro
@@ -322,25 +322,42 @@ with col_upar:
                     st.markdown(f"**Membro:** `{usuario_input_upar}` | **Cargo Atual:** `{cargo_atual_dados}`")
                     
                     if dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
-                        proxima_semana = 1
+                        # Se o ciclo acabou, sugere a Semana 1 do próximo ciclo/cargo
+                        proxima_semana_sugerida = 1
                         pontos_acumulados_anteriores = 0.0 
-                        st.info("Ciclo finalizado. O próximo registro será na **Semana 1** do novo cargo.")
-                    elif semana_atual == total_semanas_ciclo_cargo:
-                        proxima_semana = total_semanas_ciclo_cargo # Mantém na última semana até processar
-                        st.warning("Fim do ciclo! Registre os pontos finais e clique em processar.")
+                        st.info("Ciclo finalizado. Sugestão: **Semana 1** do novo cargo.")
                     else:
-                        proxima_semana = semana_atual + 1
+                        # Sugere a próxima semana ou a última se o ciclo já terminou
+                        proxima_semana_sugerida = min(semana_atual_dados + 1, total_semanas_ciclo_cargo)
+                        if semana_atual_dados >= total_semanas_ciclo_cargo:
+                             st.warning("Fim do ciclo! Registre os pontos finais e clique em processar.")
                         
-                    st.markdown(f"**Próxima Semana do Ciclo:** `{proxima_semana}/{total_semanas_ciclo_cargo}`")
+                    # 1. CARGO ATUAL
+                    # Garante que o cargo é lido dos dados, mas permite seleção manual
+                    cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=cargo_index_default, key='cargo_select_update')
+                    
+                    # Atualiza o total de semanas do ciclo baseado no cargo selecionado
+                    total_semanas_ciclo_cargo_selecionado = METAS_PONTUACAO.get(cargo_input, {'ciclo': 1})['ciclo']
+                    
+                    # 2. SEMANA DO CICLO (Permitindo Edição Manual)
+                    semana_input = st.number_input(
+                        f"Semana do Ciclo (Máx: {total_semanas_ciclo_cargo_selecionado})", 
+                        min_value=1, 
+                        max_value=total_semanas_ciclo_cargo_selecionado, # Limita ao ciclo do cargo
+                        value=int(proxima_semana_sugerida), 
+                        key='semana_input_update'
+                    )
+                    
+                    st.markdown(f"**Status Ciclo:** Semana `{int(semana_input)}/{total_semanas_ciclo_cargo_selecionado}`")
+
                 else:
                     st.error(f"Cargo '{cargo_atual_dados}' desconhecido. Revertendo para 'f*ck'.")
-                    proxima_semana = 1
+                    proxima_semana_sugerida = 1
                     cargo_index_default = CARGOS_LISTA.index('f*ck')
+                    cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=cargo_index_default, key='cargo_select_update_err')
+                    semana_input = st.number_input("Semana do Ciclo", min_value=1, value=1, key='semana_input_update_err')
             
             st.divider()
-
-            semana_input = st.number_input("Semana do Ciclo (Leitura)", min_value=1, value=int(proxima_semana), disabled=True, key='semana_input_update')
-            cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=cargo_index_default, key='cargo_select_update')
 
             st.markdown("##### Pontuação Semanal")
             col_pts1, col_pts2 = st.columns(2)
@@ -372,14 +389,29 @@ with col_upar:
             
             dados_atuais = df_reloaded[df_reloaded[col_usuario] == st.session_state.select_user_update].iloc[0]
             
+            # Captura os dados de entrada
             pontos_base_input = st.session_state.pontos_base_input
             bonus_input = st.session_state.bonus_input
             mult_ind_input = st.session_state.mult_ind_input
             cargo_input = st.session_state.cargo_select_update
+            semana_registrada_manual = st.session_state.semana_input_update # Valor fornecido pelo usuário
             
             pontos_acumulados_anteriores = dados_atuais[col_pontos_acum]
-            semana_atual = int(dados_atuais[col_sem])
+            
+            # Se a semana registrada for 1, consideramos que o ciclo é novo e zeramos os pontos acumulados
+            # Se for uma semana > 1, usamos os pontos acumulados anteriores.
+            if semana_registrada_manual == 1 and dados_atuais[col_sit] not in ["UPADO", "REBAIXADO", "MANTEVE"]:
+                 # Se o usuário está registrando a semana 1, mas o status anterior não estava "finalizado", é um reset manual.
+                 pontos_acumulados_a_somar = 0.0
+            elif dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
+                 # Se o status anterior era finalizado, o ciclo é novo e os pontos acumulados já são 0.
+                 pontos_acumulados_a_somar = 0.0
+            else:
+                 # Se o status era "Em andamento", continua a soma
+                 pontos_acumulados_a_somar = pontos_acumulados_anteriores
+            
             pontos_total_final_anterior = dados_atuais[col_pontos_final]
+            total_semanas_ciclo_cargo = METAS_PONTUACAO.get(cargo_input, {'ciclo': 1})['ciclo']
 
             # 1. Cálculo da Pontuação da Semana 
             pontos_semana_calc = calcular_pontuacao_semana(
@@ -388,57 +420,94 @@ with col_upar:
                 mult_ind_input
             )
             
-            pontos_acumulados_total = pontos_acumulados_anteriores + pontos_semana_calc
-            proxima_semana = semana_atual + 1
+            # 2. Atualiza Pontos Acumulados
+            pontos_acumulados_total = pontos_acumulados_a_somar + pontos_semana_calc
             
-            # 2. Avaliação de Situação
-            total_semanas_ciclo_cargo = METAS_PONTUACAO.get(cargo_input, {'ciclo': 3})['ciclo']
-            
-            if proxima_semana > total_semanas_ciclo_cargo:
-                # É o final do ciclo, faz a avaliação
-                situacao, semanas_restantes = avaliar_situacao(
+            # 3. Determina se esta é a última semana do ciclo para acionar a avaliação
+            is_ultima_semana = (semana_registrada_manual == total_semanas_ciclo_cargo)
+
+            if is_ultima_semana:
+                # É o final do ciclo: faz a avaliação
+                situacao_final, semanas_restantes = avaliar_situacao(
                     cargo_input, 
-                    total_semanas_ciclo_cargo, # Passa a semana final para forçar a avaliação
+                    semana_registrada_manual, 
                     pontos_acumulados_total
                 )
             else:
                 # Ciclo em andamento
-                situacao = f"Em andamento ({proxima_semana}/{total_semanas_ciclo_cargo})"
-                semanas_restantes = total_semanas_ciclo_cargo - proxima_semana
+                situacao_final = f"Em andamento ({semana_registrada_manual}/{total_semanas_ciclo_cargo})"
             
-            # 3. Lógica de UP/REBAIXAR
+            # 4. Lógica de UP/REBAIXAR
             novo_cargo = cargo_input 
-            nova_semana = proxima_semana
+            nova_semana = semana_registrada_manual + 1
             novo_pontos_acumulados = pontos_acumulados_total
             
-            if situacao in ["UPADO", "REBAIXADO", "MANTEVE"]:
-                nova_semana = 1
-                novo_pontos_acumulados = 0.0 # Zera para o próximo ciclo
-                
-                if situacao == "UPADO":
-                    indice_atual = CARGOS_LISTA.index(cargo_input)
-                    if indice_atual < len(CARGOS_LISTA) - 1:
-                        novo_cargo = CARGOS_LISTA[indice_atual + 1]
-                    else:
-                        novo_cargo = CARGOS_LISTA[-1] # Cargo Máximo
-                        
-                elif situacao == "REBAIXADO":
-                    try:
+            if is_ultima_semana:
+                # Se a avaliação ocorreu, determina o próximo estado
+                if situacao_final in ["UPADO", "REBAIXADO", "MANTEVE"]:
+                    nova_semana = 1
+                    novo_pontos_acumulados = 0.0 # Zera para o próximo ciclo
+                    
+                    if situacao_final == "UPADO":
                         indice_atual = CARGOS_LISTA.index(cargo_input)
-                        if indice_atual > 0:
-                            novo_cargo = CARGOS_LISTA[indice_atual - 1]
+                        if indice_atual < len(CARGOS_LISTA) - 1:
+                            novo_cargo = CARGOS_LISTA[indice_atual + 1]
                         else:
-                            novo_cargo = 'f*ck' # Cargo Mínimo
-                    except ValueError:
-                        novo_cargo = 'f*ck'
+                            novo_cargo = CARGOS_LISTA[-1] # Cargo Máximo
+                            
+                    elif situacao_final == "REBAIXADO":
+                        try:
+                            indice_atual = CARGOS_LISTA.index(cargo_input)
+                            if indice_atual > 0:
+                                novo_cargo = CARGOS_LISTA[indice_atual - 1]
+                            else:
+                                novo_cargo = 'f*ck' # Cargo Mínimo
+                        except ValueError:
+                            novo_cargo = 'f*ck'
+                
+                # Se não UP/REBAIXA/MANTEM, o status final é o resultado da avaliação
+                situacao_para_tabela = situacao_final
+                
+            else:
+                # Se não é a última semana, o status é "Em andamento"
+                situacao_para_tabela = situacao_final
+                
+                # Se o usuário registrou a semana 1, mas o cargo é o mesmo, significa que ele está
+                # começando o ciclo de novo, então ajustamos o status para 1/Y
+                if semana_registrada_manual == 1:
+                    novo_pontos_acumulados = pontos_semana_calc # Zera e considera só os pontos da semana atual
+                    situacao_para_tabela = f"Em andamento (1/{total_semanas_ciclo_cargo})"
             
-            # 4. Prepara os novos dados
+            # 5. Prepara os novos dados
+            
+            # O campo Semana_Atual armazena a *próxima* semana a ser registrada (ou 1 se UP/REBAIXOU)
+            # O campo Situação armazena o status *após* o registro desta semana
+            
+            # Se houve UP/REBAIXA, a nova situação é o resultado, e a nova semana é 1
+            if situacao_para_tabela in ["UPADO", "REBAIXADO", "MANTEVE"]:
+                 # A Situação na tabela será o resultado final (UPADO/REBAIXADO/MANTEVE)
+                 # A Semana_Atual será 1 (próximo ciclo)
+                 # O Cargo será o novo cargo (upado/rebaixado)
+                 nova_semana_para_tabela = 1
+                 novo_cargo_para_tabela = novo_cargo
+                 novo_pontos_acumulados_para_tabela = 0.0
+            
+            # Se estiver em andamento, a situação reflete a semana registrada e o próximo cargo é o atual
+            else:
+                 # A Situação na tabela será o status (Em andamento X/Y)
+                 # A Semana_Atual será a próxima semana (X+1)
+                 # O Cargo será o cargo atual
+                 nova_semana_para_tabela = semana_registrada_manual + 1
+                 novo_cargo_para_tabela = cargo_input
+                 novo_pontos_acumulados_para_tabela = novo_pontos_acumulados
+            
+            
             novo_dado = {
                 col_usuario: usuario_input_upar, 
-                col_cargo: novo_cargo, 
-                col_sit: situacao,
-                col_sem: nova_semana,
-                col_pontos_acum: round(novo_pontos_acumulados, 1), 
+                col_cargo: novo_cargo_para_tabela, # Cargo após UP/REBAIXAR
+                col_sit: situacao_para_tabela, # Situação final
+                col_sem: nova_semana_para_tabela, # Próxima semana
+                col_pontos_acum: round(novo_pontos_acumulados_para_tabela, 1), 
                 col_pontos_sem: round(pontos_semana_calc, 1),
                 col_bonus_sem: round(bonus_input, 1),
                 col_mult_ind: round(mult_ind_input, 1),
@@ -446,11 +515,11 @@ with col_upar:
                 col_pontos_final: round(pontos_total_final_anterior + pontos_semana_calc, 1), 
             }
             
-            # 5. Atualiza o DataFrame e salva
+            # 6. Atualiza o DataFrame e salva
             df.loc[df[df[col_usuario] == usuario_input_upar].index[0]] = novo_dado
 
             if salvar_dados(df, SHEET_NAME_PRINCIPAL):
-                st.success(f"Dados salvos! Situação: {situacao} | Próximo Cargo: **{novo_cargo}**")
+                st.success(f"Dados salvos! Situação: {situacao_para_tabela} | Próximo Cargo: **{novo_cargo_para_tabela}**")
                 st.rerun()
         else:
             st.error("Selecione um membro válido antes de salvar.")
