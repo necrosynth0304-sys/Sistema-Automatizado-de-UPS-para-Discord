@@ -1,51 +1,48 @@
 import streamlit as st
 import pandas as pd
 from datetime import datetime
-import os
 import gspread
 from google.oauth2.service_account import Credentials
 
-
 # --- CONFIGURAÇÃO DAS REGRAS (Foco em Horas de Call) ---
 
-# Os valores são (Meta UP / Meta Manter) em horas acumuladas por ciclo (1 semana)
+# Os valores são (Meta UP / Meta Manter) em HORAS acumuladas por ciclo (1 semana)
+# A hierarquia segue a ordem: 1 (Menor) a 13 (Maior/Topo)
 METAS_CALL = {
-    'f*ck':      {'ciclo': 1, 'meta_up': 14, 'meta_manter': 12}, 
-    '100%':      {'ciclo': 1, 'meta_up': 21, 'meta_manter': 14},
-    'woo':       {'ciclo': 1, 'meta_up': 28, 'meta_manter': 21},
-    'sex':       {'ciclo': 1, 'meta_up': 33, 'meta_manter': 28},
-    '?':         {'ciclo': 1, 'meta_up': 38, 'meta_manter': 33},
-    '!':         {'ciclo': 1, 'meta_up': 42, 'meta_manter': 38},
-    'aura':      {'ciclo': 1, 'meta_up': 45, 'meta_manter': 42},
-    'all wild':  {'ciclo': 1, 'meta_up': 51, 'meta_manter': 45},
-    'cute':      {'ciclo': 1, 'meta_up': 56, 'meta_manter': 51},
-    '$':         {'ciclo': 1, 'meta_up': 60, 'meta_manter': 56}, 
-    'void':      {'ciclo': 1, 'meta_up': 64, 'meta_manter': 60},
-    'dawn':      {'ciclo': 1, 'meta_up': 67, 'meta_manter': 64},
-    'upper':     {'ciclo': 1, 'meta_up': 72, 'meta_manter': 67}, 
+    # Posições 1 a 4 (Base)
+    'f*ck':      {'ciclo': 1, 'meta_up': 14, 'meta_manter': 12},      # Posição 1
+    '100%':      {'ciclo': 1, 'meta_up': 21, 'meta_manter': 14},      # Posição 2
+    'woo':       {'ciclo': 1, 'meta_up': 28, 'meta_manter': 21},      # Posição 3
+    'sex':       {'ciclo': 1, 'meta_up': 33, 'meta_manter': 28},      # Posição 4
+    
+    # Posição 5 (Note)
+    'note':      {'ciclo': 1, 'meta_up': 38, 'meta_manter': 33},      # Posição 5 (Antigo '?')
+    
+    # Posições 6 e 7 (Desceram 1 nível)
+    'aura':      {'ciclo': 1, 'meta_up': 42, 'meta_manter': 38},      # Posição 6 (Ocupa vaga do antigo '!')
+    'all wild':  {'ciclo': 1, 'meta_up': 45, 'meta_manter': 42},      # Posição 7 (Ocupa vaga do antigo 'aura')
+    
+    # Posições 8 e 9 (Cute e Mello)
+    'cute':      {'ciclo': 1, 'meta_up': 51, 'meta_manter': 45},      # Posição 8 (Desceu, ocupa vaga do antigo 'all wild')
+    'mello':     {'ciclo': 1, 'meta_up': 56, 'meta_manter': 51},      # Posição 9 (Subiu, ocupa vaga do antigo 'cute')
+    
+    # Posições 10 a 12 (Desceram 1 nível)
+    'void':      {'ciclo': 1, 'meta_up': 60, 'meta_manter': 56},      # Posição 10 (Ocupa vaga do antigo '$')
+    'dawn':      {'ciclo': 1, 'meta_up': 64, 'meta_manter': 60},      # Posição 11 (Ocupa vaga do antigo 'void')
+    'upper':     {'ciclo': 1, 'meta_up': 67, 'meta_manter': 64},      # Posição 12 (Ocupa vaga do antigo 'dawn')
+    
+    # Posição 13 (Topo)
+    'Light':     {'ciclo': 1, 'meta_up': 72, 'meta_manter': 67},      # Posição 13 (Subiu, ocupa vaga do antigo 'upper')
 }
 
-CARGOS_LISTA = list(METAS_CALL.keys())
-
-# --- FUNÇÕES DE CONEXÃO E LÓGICA ---
-
-@st.cache_resource(ttl=3600) 
-def get_gsheets_client():
-    """Autoriza o cliente gspread."""
-    try:
-        creds_json = st.secrets["gcp_service_account"]
-        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
-        credentials = Credentials.from_service_account_info(creds_json, scopes=scopes)
-        return gspread.authorize(credentials)
-    except Exception as e:
-        # Apenas registra o erro na sessão para evitar quebrar a app no início
-        st.session_state['gsheets_error'] = f"Erro de conexão com Google Sheets: {e}"
-        return None
-
-gc = get_gsheets_client()
+# Lista ordenada do Menor para o Maior
+CARGOS_LISTA = [
+    'f*ck', '100%', 'woo', 'sex', 'note', 'aura', 'all wild', 
+    'cute', 'mello', 
+    'void', 'dawn', 'upper', 'Light'
+]
 
 # --- CONSTANTES DE COLUNAS ---
-
 COLUNAS_PADRAO = [
     'usuario', 'user_id', 'cargo', 'situação', 'Semana_Atual', 
     'Horas_Acumuladas_Ciclo', 'Horas_Semana', 'Data_Ultima_Atualizacao', 
@@ -53,7 +50,7 @@ COLUNAS_PADRAO = [
 ]
 
 col_usuario = 'usuario'
-col_user_id = 'user_id' # Nova constante para o ID
+col_user_id = 'user_id' # ID do Usuário
 col_cargo = 'cargo'
 col_sit = 'situação'
 col_sem = 'Semana_Atual'
@@ -62,7 +59,28 @@ col_horas_semana = 'Horas_Semana'
 col_horas_final = 'Horas_Total_Final' 
 
 
-@st.cache_data(ttl=5) 
+# --- FUNÇÕES DE CONEXÃO E LÓGICA ---
+
+@st.cache_resource(ttl=3600)
+def get_gsheets_client():
+    """Autoriza o cliente gspread."""
+    if "gcp_service_account" not in st.secrets or "gsheets_config" not in st.secrets:
+        st.error("Configuração de secrets ausente. Verifique 'gcp_service_account' e 'gsheets_config'.")
+        return None
+        
+    try:
+        creds_json = st.secrets["gcp_service_account"]
+        scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
+        credentials = Credentials.from_service_account_info(creds_json, scopes=scopes)
+        return gspread.authorize(credentials)
+    except Exception as e:
+        st.session_state['gsheets_error'] = f"Erro de conexão com Google Sheets: {e}"
+        return None
+
+gc = get_gsheets_client()
+
+
+@st.cache_data(ttl=5)
 def carregar_dados():
     """Lê os dados da planilha Google (worksheet ESPECÍFICA para CALL)."""
     if gc is None:
@@ -77,14 +95,22 @@ def carregar_dados():
         sh = gc.open_by_url(SPREADSHEET_URL)
         worksheet = sh.worksheet(SHEET_NAME)
         
-        df = pd.DataFrame(worksheet.get_all_records())
+        data = worksheet.get_all_records()
         
-        # GARANTE que 'user_id' exista, preenchendo com 'N/A' se for um DF antigo
-        if col_user_id not in df.columns:
-            df.insert(1, col_user_id, 'N/A') # Insere na segunda coluna
-        
-        if df.empty or not all(col in df.columns for col in COLUNAS_PADRAO):
+        if not data:
             df = pd.DataFrame(columns=COLUNAS_PADRAO)
+        else:
+            df = pd.DataFrame(data)
+        
+        # Validação de Colunas e Inserção Segura do ID
+        if col_user_id not in df.columns:
+            if col_usuario in df.columns:
+                loc = df.columns.get_loc(col_usuario) + 1
+            else:
+                loc = 1 
+            df.insert(loc, col_user_id, 'N/A')
+            
+        df = df.reindex(columns=COLUNAS_PADRAO, fill_value='0.0')
         
         cols_to_convert = [col_sem, col_horas_acum, col_horas_semana, col_horas_final]
         for col in cols_to_convert:
@@ -113,7 +139,6 @@ def salvar_dados(df):
         sh = gc.open_by_url(SPREADSHEET_URL)
         worksheet = sh.worksheet(SHEET_NAME)
         
-        # Garante que as colunas sejam salvas na ordem correta, incluindo 'user_id'
         df_to_save = df[COLUNAS_PADRAO].astype(str)
         data = [df_to_save.columns.values.tolist()] + df_to_save.values.tolist()
         
@@ -136,7 +161,6 @@ def avaliar_situacao_call(cargo, horas_acumuladas):
     meta_up = meta['meta_up']
     meta_manter = meta['meta_manter']
     
-    # Como o ciclo é sempre 1 semana, a avaliação é direta
     if horas_acumuladas >= meta_up:
         situacao = "UPADO"
     elif horas_acumuladas >= meta_manter:
@@ -145,6 +169,14 @@ def avaliar_situacao_call(cargo, horas_acumuladas):
         situacao = "REBAIXADO"
         
     return situacao
+
+
+def limpar_campos_interface_call():
+    """Limpa campos de input."""
+    keys_to_delete = ['horas_input_update']
+    for key in keys_to_delete:
+        if key in st.session_state:
+            del st.session_state[key]
 
 
 # --- INTERFACE (STREAMLIT) ---
@@ -156,8 +188,10 @@ st.markdown("##### Gerenciamento Semanal de UP baseado **apenas em Horas em Call
 df = carregar_dados()
 
 # Variável de estado para o botão salvar
-if 'salvar_button_clicked' not in st.session_state:
-    st.session_state.salvar_button_clicked = False
+if 'salvar_button_clicked_call' not in st.session_state:
+    st.session_state.salvar_button_clicked_call = False
+if 'usuario_selecionado_id_call' not in st.session_state:
+    st.session_state.usuario_selecionado_id_call = '-- Selecione o Membro --'
 
 col1, col2 = st.columns([1, 2])
 
@@ -168,18 +202,13 @@ with col1:
     tab_add, tab_update = st.tabs(["Adicionar Novo Membro", "Upar"])
 
     usuario_input = None
-    if CARGOS_LISTA:
-        cargo_inicial_default = CARGOS_LISTA.index('f*ck')
-    else:
-        cargo_inicial_default = 0
-
+    cargo_inicial_default = CARGOS_LISTA.index('f*ck') if CARGOS_LISTA else 0
 
     # === ABA 1: ADICIONAR NOVO MEMBRO ===
     with tab_add:
         st.subheader("Registrar Novo Membro") 
         
         usuario_input_add = st.text_input("Nome do Novo Usuário", key='usuario_input_add')
-        # NOVO CAMPO: ID do Usuário
         user_id_input_add = st.text_input("ID do Usuário (Opcional)", key='user_id_input_add', value='N/A')
         cargo_input_add = st.selectbox("Cargo Inicial", CARGOS_LISTA, index=cargo_inicial_default, key='cargo_select_add')
         
@@ -191,7 +220,7 @@ with col1:
                 else:
                     novo_dado_add = {
                         col_usuario: usuario_input_add, 
-                        col_user_id: user_id_input_add, # Salva o ID
+                        col_user_id: user_id_input_add, 
                         col_cargo: cargo_input_add, 
                         col_sit: f"Em andamento (1/1)",
                         col_sem: 1,
@@ -204,6 +233,7 @@ with col1:
                     df = pd.concat([df, pd.DataFrame([novo_dado_add])], ignore_index=True)
                     
                     if salvar_dados(df):
+                        st.session_state.usuario_selecionado_id_call = usuario_input_add 
                         st.success(f"Membro **{usuario_input_add}** adicionado! Use a aba 'Upar' para registrar a primeira semana.")
                         st.rerun()
             else:
@@ -214,13 +244,27 @@ with col1:
     with tab_update:
         
         opcoes_usuarios = ['-- Selecione o Membro --'] + sorted(df[col_usuario].unique().tolist()) 
-        usuario_selecionado = st.selectbox("Selecione o Membro", opcoes_usuarios, key='select_user_update')
         
+        try:
+            default_index = opcoes_usuarios.index(st.session_state.usuario_selecionado_id_call)
+        except ValueError:
+            default_index = 0
+            
+        usuario_selecionado = st.selectbox(
+            "Selecione o Membro", 
+            opcoes_usuarios, 
+            index=default_index,
+            key='select_user_update_call',
+            on_change=lambda: st.session_state.__setitem__('usuario_selecionado_id_call', st.session_state.select_user_update_call)
+        )
+        
+        st.session_state.usuario_selecionado_id_call = usuario_selecionado
+
         if usuario_selecionado != '-- Selecione o Membro --' and not df.empty and usuario_selecionado in df[col_usuario].values:
             
             dados_atuais = df[df[col_usuario] == usuario_selecionado].iloc[0]
             usuario_input = dados_atuais[col_usuario]
-            user_id_atual = dados_atuais.get(col_user_id, 'N/A') # Lê o ID
+            user_id_atual = dados_atuais.get(col_user_id, 'N/A')
             
             cargo_atual_dados = dados_atuais[col_cargo]
             horas_acumuladas_anteriores = dados_atuais[col_horas_acum]
@@ -231,21 +275,28 @@ with col1:
                 if cargo_atual_dados in METAS_CALL:
                     
                     cargo_index_default = CARGOS_LISTA.index(cargo_atual_dados)
-                    st.markdown(f"**Membro:** `{usuario_input}` | **Cargo Atual:** `{cargo_atual_dados}`")
-                    # DESTAQUE: ID do Usuário
-                    if user_id_atual != 'N/A':
-                        st.markdown(f"**ID:** `{user_id_atual}`") 
+                    st.markdown(f"**Membro:** `{usuario_input}`")
                     
-                    # Garantia contra StreamlitValueAboveMaxError: valor inicial do number_input deve ser 1
+                    # DESTAQUE: ID do Usuário (VERDE, SEM FUNDO)
+                    st.markdown(
+                        f"""
+                        <div style="margin-bottom: 5px;">
+                            <strong>ID do Usuário:</strong> <span style="color: #198754; font-weight: bold;">{user_id_atual}</span>
+                        </div>
+                        """, 
+                        unsafe_allow_html=True
+                    )
+                    
                     if dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
                         semana_input_value = 1
                         horas_acumuladas_anteriores = 0.0 
-                        st.info("Ciclo finalizado. O próximo registro será na **Semana 1** do novo cargo.")
+                        st.info(f"Ciclo finalizado. Registre a **Semana 1** do cargo **{cargo_atual_dados}**.")
                     else:
                         semana_input_value = 1 
                         
                 else:
                     st.error(f"Cargo '{cargo_atual_dados}' desconhecido. Revertendo para 'f*ck'.")
+                    cargo_index_default = CARGOS_LISTA.index('f*ck')
                     semana_input_value = 1
             # --- Fim Bloco de Informação do Membro ---
             
@@ -261,8 +312,8 @@ with col1:
             horas_input = st.number_input("Horas em Call NESTA SEMANA", min_value=0.0, value=0.0, step=0.5, key='horas_input_update')
             
             st.markdown("---")
-            if st.button("Salvar / Processar Semana", type="primary", key="save_update_button", use_container_width=True):
-                st.session_state.salvar_button_clicked = True
+            if st.button("Salvar / Processar Semana", type="primary", key="save_update_button_call", use_container_width=True):
+                st.session_state.salvar_button_clicked_call = True
             
         else:
             st.info("Selecione um membro acima para registrar a pontuação da semana.")
@@ -273,24 +324,28 @@ with col1:
     # --- LÓGICA DE PROCESSAMENTO (EXECUÇÃO) ---
     # ----------------------------------------------------
     
-    if st.session_state.salvar_button_clicked:
-        st.session_state.salvar_button_clicked = False
+    if st.session_state.salvar_button_clicked_call:
+        st.session_state.salvar_button_clicked_call = False
         
         if usuario_input is not None:
             
             df_reloaded = carregar_dados() 
-            dados_atuais = df_reloaded[df_reloaded[col_usuario] == st.session_state.select_user_update].iloc[0]
-            horas_acumuladas_anteriores = dados_atuais[col_horas_acum] 
-
+            dados_atuais = df_reloaded[df_reloaded[col_usuario] == st.session_state.select_user_update_call].iloc[0]
+            
             usuario_input = dados_atuais[col_usuario]
-            user_id_salvar = dados_atuais.get(col_user_id, 'N/A') # Pega o ID para salvar
+            user_id_salvar = dados_atuais.get(col_user_id, 'N/A')
+            
+            horas_acumuladas_anteriores = dados_atuais[col_horas_acum] 
             cargo_input = st.session_state.cargo_select_update
-            semana_input = st.session_state.semana_input_update
             horas_input = st.session_state.horas_input_update 
             
             # --- Lógica de Cálculo e Avaliação ---
             
-            horas_acumuladas_total = horas_acumuladas_anteriores + horas_input
+            # Zera se for novo ciclo, senão acumula
+            if dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
+                 horas_acumuladas_total = horas_input
+            else:
+                 horas_acumuladas_total = horas_acumuladas_anteriores + horas_input
             
             situacao = avaliar_situacao_call(cargo_input, horas_acumuladas_total)
 
@@ -318,14 +373,21 @@ with col1:
                     except ValueError:
                         novo_cargo = 'f*ck'
                 else:
-                    nova_semana = 1
-                    novo_horas_acumuladas = horas_acumuladas_total
+                    # MANTEVE
+                    novo_cargo = cargo_input 
+                    
+            else:
+                # Em andamento (embora com ciclo 1 isso raramente ocorra se meta não for atingida em 1 sem)
+                # Se não atingiu meta em 1 semana, tecnicamente 'REBAIXADO' ou 'MANTEVE' dependendo da regra
+                # Mas aqui, como o ciclo é 1, a função avaliar_situacao já retorna o veredito final.
+                nova_semana = 1
+                novo_horas_acumuladas = horas_acumuladas_total
 
 
             # Prepara os novos dados
             novo_dado = {
                 col_usuario: usuario_input, 
-                col_user_id: user_id_salvar, # Salva o ID
+                col_user_id: user_id_salvar, 
                 col_cargo: novo_cargo, 
                 col_sit: situacao,
                 col_sem: nova_semana,
@@ -339,7 +401,16 @@ with col1:
             df.loc[df[df[col_usuario] == usuario_input].index[0]] = novo_dado
 
             if salvar_dados(df):
-                st.success(f"Dados salvos! Situação: {situacao} | Próximo Cargo: **{novo_cargo}**")
+                limpar_campos_interface_call()
+                st.session_state.usuario_selecionado_id_call = usuario_input 
+                
+                msg_avanco = ""
+                if situacao == "UPADO":
+                    msg_avanco = f" (Subiu de nível!)"
+                elif situacao == "REBAIXADO":
+                    msg_avanco = f" (Desceu de nível)"
+                
+                st.success(f"Dados salvos! Situação: **{situacao}** | Próximo Cargo: **{novo_cargo}**{msg_avanco}")
                 st.rerun()
         else:
             st.error("Selecione um membro válido antes de salvar.")
@@ -350,25 +421,20 @@ with col1:
     # ----------------------------------------------------
     st.markdown("---")
     
-    # Cria um DataFrame de Metas para visualização
     metas_data = []
-    for cargo, metas in METAS_CALL.items():
+    for idx, (cargo, metas) in enumerate(METAS_CALL.items()):
         metas_data.append({
-            "Cargo": cargo,
+            "Cargo (#)": f"{cargo} ({idx+1})",
             "Meta UP (Horas)": metas['meta_up'],
             "Meta Manter (Horas)": metas['meta_manter']
         })
     df_metas = pd.DataFrame(metas_data)
 
-    with st.expander("Tabela de Metas por Cargo (Horas Semanais) 📋"):
-        st.dataframe(
-            df_metas,
-            hide_index=True,
-            use_container_width=True,
-        )
+    with st.expander("Tabela de Metas por Cargo (Horas Semanais) 📋", expanded=False):
+        st.dataframe(df_metas, hide_index=True, use_container_width=True)
         
     # ----------------------------------------------------
-    # --- FERRAMENTAS DE GESTÃO (Movido para após o bloco de Metas) ---
+    # --- FERRAMENTAS DE GESTÃO ---
     # ----------------------------------------------------
     st.subheader("Ferramentas de Gestão")
     with st.container(border=True):
@@ -416,7 +482,16 @@ with col2:
     st.info(f"Total de Membros Registrados: **{len(df)}**")
     
     if not df.empty: 
-        df_display = df.sort_values(by=[col_horas_final, col_cargo], ascending=[False, True])
+        # Mapeamento para ordenação por cargo
+        cargo_order = {cargo: i for i, cargo in enumerate(CARGOS_LISTA)}
+        df_display = df.copy()
+        df_display['cargo_rank'] = df_display[col_cargo].map(cargo_order)
+        
+        # Ordena: 1. Horas Totais (Decrescente), 2. Rank do Cargo (Decrescente/Maior Primeiro)
+        df_display = df_display.sort_values(
+            by=[col_horas_final, 'cargo_rank'], 
+            ascending=[False, False]
+        )
                                         
         st.dataframe(
             df_display.style.map(
@@ -424,7 +499,7 @@ with col2:
                           ('background-color: #ffe6e6; color: red' if 'REBAIXADO' in str(x) else 
                            ('background-color: #fffac2; color: #8a6d3b' if 'MANTEVE' in str(x) else '')),
                 subset=[col_sit]
-            ),
+            ).format(precision=1),
             use_container_width=True,
             height=600,
             column_order=[col_usuario, col_user_id, col_cargo, col_sit, col_horas_acum, col_horas_semana, 'Data_Ultima_Atualizacao']
