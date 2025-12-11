@@ -3,28 +3,45 @@ import pandas as pd
 from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
-import os # Importar para usar em conjunto com st.secrets
 
 # --- CONFIGURAÇÃO DAS REGRAS DO SISTEMA (PONTUAÇÃO E CICLOS) ---
 
-# NOVO MAPA DE PONTUAÇÃO (Cargos 1 a 13)
+# NOVO MAPA DE PONTUAÇÃO - HIERARQUIA REAJUSTADA
+# Ciclo: 1 Semana para todos
+# Metas baseadas no "deslize" dos cargos para baixo
 METAS_PONTUACAO = {
-    'f*ck':      {'ciclo': 1, 'meta_up': 15, 'meta_manter': 10},      # Cargo 1
-    '100%':      {'ciclo': 1, 'meta_up': 20, 'meta_manter': 15},      # Cargo 2
-    'woo':       {'ciclo': 2, 'meta_up': 70, 'meta_manter': 60},      # Cargo 3
-    'sex':       {'ciclo': 2, 'meta_up': 100, 'meta_manter': 80},     # Cargo 4
-    '?':         {'ciclo': 3, 'meta_up': 195, 'meta_manter': 150},    # Cargo 5
-    '!':         {'ciclo': 3, 'meta_up': 336, 'meta_manter': 260},    # Cargo 6
-    'aura':      {'ciclo': 4, 'meta_up': 440, 'meta_manter': 336},    # Cargo 7
-    'all wild':  {'ciclo': 4, 'meta_up': 580, 'meta_manter': 400},    # Cargo 8
-    'cute':      {'ciclo': 4, 'meta_up': 681, 'meta_manter': 581},    # Cargo 9
-    '$':         {'ciclo': 4, 'meta_up': 801, 'meta_manter': 740},    # Cargo 10
-    'void':      {'ciclo': 5, 'meta_up': 971, 'meta_manter': 880},    # Cargo 11 (Progressão)
-    'dawn':      {'ciclo': 5, 'meta_up': 1141, 'meta_manter': 1025},   # Cargo 12 (Progressão)
-    'upper':     {'ciclo': 5, 'meta_up': 1321, 'meta_manter': 1180},   # Cargo 13 (Progressão)
+    # Posições 1 a 4 (Base)
+    'f*ck':      {'ciclo': 1, 'meta_up': 15, 'meta_manter': 10},      # Posição 1
+    '100%':      {'ciclo': 1, 'meta_up': 20, 'meta_manter': 15},      # Posição 2
+    'woo':       {'ciclo': 1, 'meta_up': 70, 'meta_manter': 60},      # Posição 3
+    'sex':       {'ciclo': 1, 'meta_up': 100, 'meta_manter': 80},     # Posição 4
+    
+    # Posição 5
+    'note':      {'ciclo': 1, 'meta_up': 195, 'meta_manter': 150},    # Posição 5 (Antigo '?')
+    
+    # Posições 6 a 8 (Deslizaram para baixo - Pegam metas do cargo anterior neles)
+    'aura':      {'ciclo': 1, 'meta_up': 336, 'meta_manter': 260},    # Posição 6 (Meta do antigo '!')
+    'all wild':  {'ciclo': 1, 'meta_up': 440, 'meta_manter': 336},    # Posição 7 (Meta do antigo 'aura')
+    'cute':      {'ciclo': 1, 'meta_up': 580, 'meta_manter': 400},    # Posição 8 (Meta do antigo 'all wild') - Fica abaixo de Mello
+    
+    # Posição 9 (Mello - Ocupa lugar do antigo Cute)
+    'mello':     {'ciclo': 1, 'meta_up': 681, 'meta_manter': 581},    # Posição 9 (Meta do antigo 'cute')
+    
+    # Posições 10 a 12 (Deslizaram para baixo)
+    'void':      {'ciclo': 1, 'meta_up': 801, 'meta_manter': 740},    # Posição 10 (Meta do antigo '$')
+    'dawn':      {'ciclo': 1, 'meta_up': 971, 'meta_manter': 880},    # Posição 11 (Meta do antigo 'void')
+    'upper':     {'ciclo': 1, 'meta_up': 1141, 'meta_manter': 1025},  # Posição 12 (Meta do antigo 'dawn') - Fica abaixo de Light
+    
+    # Posição 13 (Light - Topo)
+    'Light':     {'ciclo': 1, 'meta_up': 1321, 'meta_manter': 1180},  # Posição 13 (Meta do antigo 'upper')
 }
 
-CARGOS_LISTA = list(METAS_PONTUACAO.keys())
+# Lista ordenada do Menor para o Maior
+CARGOS_LISTA = [
+    'f*ck', '100%', 'woo', 'sex', 'note', 'aura', 'all wild', 
+    'cute', 'mello', 
+    'void', 'dawn', 'upper', 'Light'
+]
 
 # --- CONSTANTES DE CONVERSÃO ---
 MENSAGENS_POR_PONTO = 50
@@ -58,10 +75,6 @@ col_pontos_final = 'Pontos_Total_Final'
 @st.cache_resource(ttl=3600)
 def get_gsheets_client():
     """Autoriza o cliente gspread."""
-    if "gcp_service_account" not in st.secrets or "gsheets_config" not in st.secrets:
-        st.error("Configuração de secrets ausente. Verifique 'gcp_service_account' e 'gsheets_config'.")
-        return None
-        
     try:
         creds_json = st.secrets["gcp_service_account"]
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -76,7 +89,7 @@ gc = get_gsheets_client()
 
 @st.cache_data(ttl=5)
 def carregar_dados(sheet_name):
-    """Lê os dados da planilha Google. CORREÇÃO DE ERRO DE COLUNA APLICADA."""
+    """Lê os dados da planilha Google."""
     if gc is None:
         if 'gsheets_error' in st.session_state:
              st.error(st.session_state['gsheets_error'])
@@ -86,33 +99,24 @@ def carregar_dados(sheet_name):
         SPREADSHEET_URL = st.secrets["gsheets_config"]["spreadsheet_url"]
         sh = gc.open_by_url(SPREADSHEET_URL)
         
-        # Lógica para carregar DADOS PRINCIPAIS
         worksheet = sh.worksheet(sheet_name)
         data = worksheet.get_all_records()
         
-        # Se os dados estiverem vazios ou houver um erro de leitura, cria um DF vazio
         if not data:
             df = pd.DataFrame(columns=COLUNAS_PADRAO)
         else:
             df = pd.DataFrame(data)
         
-        # --- BLOCO DE VALIDAÇÃO DE COLUNAS E INSERÇÃO DO ID (Corrigido e Mais Seguro) ---
-        
-        # Garante que 'user_id' exista
+        # Validação de Colunas e Inserção Segura do ID
         if col_user_id not in df.columns:
             if col_usuario in df.columns:
                 loc = df.columns.get_loc(col_usuario) + 1
             else:
-                loc = 1 # Insere como segunda coluna se 'usuario' for ignorado
-                
+                loc = 1 
             df.insert(loc, col_user_id, 'N/A')
             
-        # Garante que todas as COLUNAS_PADRAO estejam presentes na ordem correta
-        df = df.reindex(columns=COLUNAS_PADRAO, fill_value='0.0') # Usa '0.0' para evitar problemas de tipo na conversão subsequente
+        df = df.reindex(columns=COLUNAS_PADRAO, fill_value='0.0')
         
-        # --- FIM DA VALIDAÇÃO ---
-        
-        # Conversão de tipos para colunas numéricas
         cols_to_convert = [col_sem, col_pontos_acum, col_pontos_sem, col_bonus_sem, col_mult_ind, col_pontos_final]
         for col in cols_to_convert:
             if col in df.columns:
@@ -120,13 +124,8 @@ def carregar_dados(sheet_name):
             
         return df
 
-    except gspread.WorksheetNotFound:
-        st.error(f"ERRO: A aba '{sheet_name}' não foi encontrada na planilha. Verifique o nome.")
-        return pd.DataFrame(columns=COLUNAS_PADRAO)
-    
     except Exception as e:
-        # Erro genérico para problemas de permissão, URL incorreta, etc.
-        st.error(f"ERRO: A conexão com a aba '{sheet_name}' falhou. Verifique se a aba existe e as permissões. ({e})")
+        st.error(f"ERRO: A conexão com a aba '{sheet_name}' falhou. Verifique se a aba existe. ({e})")
         return pd.DataFrame(columns=COLUNAS_PADRAO)
 
 
@@ -141,9 +140,7 @@ def salvar_dados(df, sheet_name):
         sh = gc.open_by_url(SPREADSHEET_URL)
         worksheet = sh.worksheet(sheet_name)
         
-        # Garante a ordem e tipos (usa COLUNAS_PADRAO para forçar a ordem correta)
         df_to_save = df[COLUNAS_PADRAO].astype(str)
-
         data = [df_to_save.columns.values.tolist()] + df_to_save.values.tolist()
         
         worksheet.clear()
@@ -167,35 +164,24 @@ def calcular_pontuacao_semana(pontos_base, bonus, mult_ind):
 
 def avaliar_situacao(cargo, semana_atual, pontos_acumulados):
     """Avalia o UP/MANTER/REBAIXAR no final do ciclo (Meta 1x fixa)."""
-    
     meta = METAS_PONTUACAO[cargo]
-    total_semanas_ciclo = meta['ciclo']
+    meta_up = meta['meta_up']
+    meta_manter = meta['meta_manter']
     
-    if semana_atual < total_semanas_ciclo:
-        # Se o ciclo ainda não terminou
-        return f"Em andamento ({semana_atual}/{total_semanas_ciclo})", total_semanas_ciclo - semana_atual
-    
+    # Ciclo sempre 1 semana, avaliação direta
+    if pontos_acumulados >= meta_up:
+        situacao = "UPADO"
+    elif pontos_acumulados >= meta_manter:
+        situacao = "MANTEVE"
     else:
-        # Fim do ciclo: Avaliação (Meta 1x)
-        meta_up = meta['meta_up']
-        meta_manter = meta['meta_manter']
+        situacao = "REBAIXADO"
         
-        if pontos_acumulados >= meta_up:
-            situacao = "UPADO"
-        elif pontos_acumulados >= meta_manter:
-            situacao = "MANTEVE"
-        else:
-            situacao = "REBAIXADO"
-            
-        return situacao, 0
+    return situacao, 0
 
 
 def limpar_campos_interface():
-    """Remove as chaves de session_state ligadas aos widgets de input."""
-    keys_to_delete = [
-        'mensagens_input', 
-        'bonus_input', 
-    ]
+    """Limpa campos de input."""
+    keys_to_delete = ['mensagens_input', 'bonus_input']
     for key in keys_to_delete:
         if key in st.session_state:
             del st.session_state[key]
@@ -207,7 +193,6 @@ st.set_page_config(page_title="Sistema de Pontuação Ranking", layout="wide")
 st.title("Sistema de Pontuação Ranking")
 st.markdown("##### Gerenciamento de UP baseado em Pontuação (Chat)")
 
-# Carrega os dados
 df = carregar_dados(SHEET_NAME_PRINCIPAL) 
 
 # Inicializa estados
@@ -218,10 +203,9 @@ if 'usuario_selecionado_id' not in st.session_state:
 if 'novo_cargo_apos_ciclo' not in st.session_state:
     st.session_state.novo_cargo_apos_ciclo = None
 
-# REORGANIZAÇÃO DE COLUNAS: 
 col_ferramentas, col_upar, col_ranking = st.columns([1, 1.2, 2])
 
-# Variável para cargo inicial (usada nas Ferramentas e Upar)
+# Variável para cargo inicial
 cargo_inicial_default = CARGOS_LISTA.index('f*ck') if CARGOS_LISTA else 0
 usuario_input_upar = None
 
@@ -232,7 +216,6 @@ usuario_input_upar = None
 with col_ferramentas:
     st.subheader("Ferramentas de Gestão")
     
-    # 1. Adicionar Novo Membro
     with st.container(border=True):
         st.markdown("##### Adicionar Novo Membro")
         
@@ -245,7 +228,7 @@ with col_ferramentas:
                 if usuario_input_add in df[col_usuario].values:
                     st.error(f"O membro '{usuario_input_add}' já existe.")
                 else:
-                    total_ciclo_add = METAS_PONTUACAO.get(cargo_input_add, {'ciclo': 3})['ciclo']
+                    total_ciclo_add = 1 # Ciclo sempre 1
                     
                     novo_dado_add = {
                         col_usuario: usuario_input_add, 
@@ -272,14 +255,12 @@ with col_ferramentas:
         
     st.markdown("---")
     
-    # 2. Remoção / Reset
     with st.container(border=True):
         st.markdown("##### Remoção / Reset de Tabela")
 
         if 'confirm_reset' not in st.session_state:
             st.session_state.confirm_reset = False
 
-        # Remoção de Usuário
         if not df.empty:
             opcoes_remocao = sorted(df[col_usuario].unique().tolist())
             usuario_a_remover = st.selectbox("Selecione o Usuário para Remover", ['-- Selecione --'] + opcoes_remocao, key='remove_user_select')
@@ -290,13 +271,12 @@ with col_ferramentas:
                 if st.button(f"Confirmar Remoção de {usuario_a_remover}", type="secondary", key='final_remove_button', use_container_width=True):
                     df = df[df[col_usuario] != usuario_a_remover]
                     if salvar_dados(df, SHEET_NAME_PRINCIPAL):
-                        st.session_state.usuario_selecionado_id = '-- Selecione o Membro --'
+                        st.session_state.usuario_selecionado_id = '-- Selecione o Membro --' 
                         st.success(f"Membro {usuario_a_remover} removido com sucesso!")
                         st.rerun()
         
         st.markdown("---")
         
-        # Reset Total
         if st.button("Resetar Tabela INTEIRA"):
             st.session_state.confirm_reset = True
             
@@ -306,7 +286,7 @@ with col_ferramentas:
             if st.button("SIM, ZERAR TUDO", type="secondary", key='sim_reset', use_container_width=True):
                 df_reset = pd.DataFrame(columns=df.columns) 
                 if salvar_dados(df_reset, SHEET_NAME_PRINCIPAL):
-                    st.session_state.usuario_selecionado_id = '-- Selecione o Membro --'
+                    st.session_state.usuario_selecionado_id = '-- Selecione o Membro --' 
                     st.success("Tabela zerada com sucesso!")
                     st.session_state.confirm_reset = False
                     st.rerun()
@@ -321,10 +301,11 @@ with col_upar:
     metas_data_pontos_simples = []
     for idx, (cargo, metas) in enumerate(METAS_PONTUACAO.items()):
         mensagens_up = metas['meta_up'] * MENSAGENS_POR_PONTO
-        dias_ciclo = metas['ciclo'] * DIAS_POR_SEMANA
+        dias_ciclo = 7 
+        
         metas_data_pontos_simples.append({
             "Cargo (#)": f"{cargo} ({idx+1})",
-            "Ciclo (Sem)": metas['ciclo'],
+            "Ciclo (Sem)": 1,
             "Meta UP (pts)": metas['meta_up'],
             "Meta UP (msgs)": f"{mensagens_up:,.0f}",
             "Meta Manter (pts)": metas['meta_manter'], 
@@ -377,11 +358,10 @@ with col_upar:
                     
                     st.markdown(f"**Membro Selecionado:** `{usuario_input_upar}`") 
                     
-                    # 🚀 AQUI: EXIBIÇÃO APENAS DE VISUALIZAÇÃO COM COR VERDE (Estilo Puro)
-                    # Usa HTML para aplicar APENAS a cor verde (#198754) ao texto, sem fundo/borda.
+                    # DESTAQUE: ID do Usuário (VERDE, SEM FUNDO)
                     st.markdown(
                         f"""
-                        <div style="margin-bottom: 10px;">
+                        <div style="margin-bottom: 5px;">
                             <strong>ID do Usuário:</strong> <span style="color: #198754; font-weight: bold;">{user_id_atual}</span>
                         </div>
                         """, 
@@ -391,21 +371,14 @@ with col_upar:
                     # 1. CARGO ATUAL
                     cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=cargo_index_default, key='cargo_select_update')
                     
-                    total_semanas_ciclo_cargo_selecionado = METAS_PONTUACAO.get(cargo_input, {'ciclo': 1})['ciclo']
-                    
                     # --- Lógica para Mensagem de Info e Sugestão de Semana ---
-                    if st.session_state.novo_cargo_apos_ciclo == cargo_input and dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
-                        proxima_semana_sugerida = 1
+                    
+                    if dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
                         st.info(f"Ciclo finalizado ({dados_atuais[col_sit]}). Registre a **Semana 1** do cargo atual (**{cargo_input}**).")
                         st.session_state.novo_cargo_apos_ciclo = None
-                    elif dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
-                        proxima_semana_sugerida = 1
                     else:
-                        proxima_semana_sugerida = semana_atual_dados
-                        if semana_atual_dados > total_semanas_ciclo_cargo_selecionado:
-                            st.warning(f"O ciclo do cargo **{cargo_input}** está incompleto. Sugestão: Semana {total_semanas_ciclo_cargo_selecionado}.")
-                            proxima_semana_sugerida = total_semanas_ciclo_cargo_selecionado
-                    
+                        st.info("O ciclo é de 1 semana. O próximo registro será sempre a Semana 1.")
+
                     # --- MÉTRICAS PESSOAIS ---
                     st.markdown("---")
                     st.markdown("##### Métricas Pessoais (Dados Atuais)")
@@ -419,16 +392,16 @@ with col_upar:
                         st.metric("Multiplicador Atual", f"{mult_ind_anterior:.1f}x")
                     st.markdown("---")
                         
-                    # 2. SEMANA DO CICLO 
+                    # 2. SEMANA DO CICLO (Fixado em 1)
                     semana_input = st.number_input(
-                        f"Semana do Ciclo (Máx: {total_semanas_ciclo_cargo_selecionado})", 
+                        f"Semana do Ciclo (1/1)", 
                         min_value=1, 
-                        max_value=total_semanas_ciclo_cargo_selecionado, 
-                        value=int(proxima_semana_sugerida), 
+                        max_value=1, 
+                        value=1, 
                         key='semana_input_update'
                     )
                     
-                    st.markdown(f"**Status Ciclo:** Semana `{int(semana_input)}/{total_semanas_ciclo_cargo_selecionado}`")
+                    st.markdown(f"**Status Ciclo:** Semana `{int(semana_input)}/1`")
 
                 else:
                     st.error(f"Cargo '{cargo_atual_dados}' desconhecido. Revertendo para 'f*ck'.")
@@ -461,7 +434,6 @@ with col_upar:
     if st.session_state.salvar_button_clicked and usuario_input_upar is not None:
         st.session_state.salvar_button_clicked = False
         
-        # Recarrega para garantir dados frescos 
         df_reloaded = carregar_dados(SHEET_NAME_PRINCIPAL)
         dados_atuais = df_reloaded[df_reloaded[col_usuario] == st.session_state.select_user_update].iloc[0]
         
@@ -471,46 +443,36 @@ with col_upar:
         bonus_input = st.session_state.bonus_input
         mult_ind_input = st.session_state.mult_ind_input
         cargo_input = st.session_state.cargo_select_update 
-        semana_registrada_manual = st.session_state.semana_input_update 
+        semana_registrada_manual = 1 
         
         pontos_acumulados_anteriores = dados_atuais[col_pontos_acum]
         pontos_total_final_anterior = dados_atuais[col_pontos_final]
-        total_semanas_ciclo_cargo = METAS_PONTUACAO.get(cargo_input, {'ciclo': 1})['ciclo']
+        total_semanas_ciclo_cargo = 1
 
         # 1. Cálculo da Pontuação da Semana 
         pontos_semana_calc = calcular_pontuacao_semana(pontos_base_input, bonus_input, mult_ind_input)
         
-        # Lógica de Acumulação e Reset 
-        if semana_registrada_manual == 1 and dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
-             pontos_acumulados_a_somar = 0.0
-        else:
-             pontos_acumulados_a_somar = pontos_acumulados_anteriores
-        
+        # Pontos acumulados sempre resetam a cada processamento
+        pontos_acumulados_a_somar = 0.0 
         pontos_acumulados_total = pontos_acumulados_a_somar + pontos_semana_calc
         
         # 2. Avaliação de Situação
-        is_ultima_semana = (semana_registrada_manual == total_semanas_ciclo_cargo)
+        is_ultima_semana = True
         multiplicador_up = 0 
         
-        if is_ultima_semana:
-            situacao_final, semanas_restantes = avaliar_situacao(
-                cargo_input, 
-                semana_registrada_manual, 
-                pontos_acumulados_total
-            )
-        else:
-            situacao_final = f"Em andamento ({semana_registrada_manual}/{total_semanas_ciclo_cargo})"
+        situacao_final, semanas_restantes = avaliar_situacao(
+            cargo_input, 
+            semana_registrada_manual, 
+            pontos_acumulados_total
+        )
         
         # 3. Lógica de UP/REBAIXAR
         novo_cargo_para_tabela = cargo_input 
-        nova_semana_para_tabela = semana_registrada_manual + 1
-        novo_pontos_acumulados_para_tabela = pontos_acumulados_total
+        nova_semana_para_tabela = 1 
+        novo_pontos_acumulados_para_tabela = 0.0 
         situacao_para_tabela = situacao_final
         
-        if is_ultima_semana and situacao_final in ["UPADO", "REBAIXADO", "MANTEVE"]:
-            
-            nova_semana_para_tabela = 1
-            novo_pontos_acumulados_para_tabela = 0.0 
+        if situacao_final in ["UPADO", "REBAIXADO", "MANTEVE"]:
             
             if situacao_final == "UPADO":
                 try:
@@ -566,7 +528,7 @@ with col_upar:
             elif situacao_final == "REBAIXADO":
                 msg_avanco = f" (Rebaixou 1 nível para **{novo_cargo_para_tabela}**)"
             
-            st.success(f"Dados salvos! Situação: **{situacao_para_tabela}** | Próximo Ciclo: **{novo_cargo_para_tabela}**{msg_avanco}")
+            st.success(f"Dados salvos! Situação: **{situacao_para_tabela}** | Novo Cargo: **{novo_cargo_para_tabela}**{msg_avanco}")
             st.rerun()
     elif st.session_state.salvar_button_clicked:
          st.session_state.salvar_button_clicked = False
@@ -582,7 +544,14 @@ with col_ranking:
     st.info(f"Total de Membros Registrados: **{len(df)}**")
     
     if not df.empty: 
-        df_display = df.sort_values(by=[col_pontos_final, col_cargo], ascending=[False, True])
+        df_display = df.copy()
+        cargo_order = {cargo: i for i, cargo in enumerate(CARGOS_LISTA)}
+        df_display['cargo_rank'] = df_display[col_cargo].map(cargo_order)
+        
+        df_display = df_display.sort_values(
+            by=[col_pontos_final, 'cargo_rank'], 
+            ascending=[False, False] 
+        )
                                         
         st.dataframe(
             df_display.style.map(
@@ -590,7 +559,7 @@ with col_ranking:
                           ('background-color: #ffe6e6; color: red' if 'REBAIXADO' in str(x) else 
                            ('background-color: #fffac2; color: #8a6d3b' if 'MANTEVE' in str(x) else '')),
                 subset=[col_sit]
-            ),
+            ).format(precision=1),
             use_container_width=True,
             height=600,
             column_order=[col_usuario, col_user_id, col_cargo, col_sit, col_pontos_acum, col_pontos_sem, col_bonus_sem, col_mult_ind, 'Data_Ultima_Atualizacao']
