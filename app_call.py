@@ -7,7 +7,6 @@ from google.oauth2.service_account import Credentials
 # --- CONFIGURAÇÃO DAS REGRAS (Foco em Horas de Call) ---
 
 # Os valores são (Meta UP / Meta Manter) em HORAS acumuladas por ciclo (1 semana)
-# A hierarquia segue a ordem: 1 (Menor) a 13 (Maior/Topo)
 METAS_CALL = {
     # Posições 1 a 4 (Base)
     'f*ck':      {'ciclo': 1, 'meta_up': 14, 'meta_manter': 12},      # Posição 1
@@ -15,24 +14,24 @@ METAS_CALL = {
     'woo':       {'ciclo': 1, 'meta_up': 28, 'meta_manter': 21},      # Posição 3
     'sex':       {'ciclo': 1, 'meta_up': 33, 'meta_manter': 28},      # Posição 4
     
-    # Posição 5 (Note)
-    'note':      {'ciclo': 1, 'meta_up': 38, 'meta_manter': 33},      # Posição 5 (Antigo '?')
+    # Posição 5
+    'note':      {'ciclo': 1, 'meta_up': 38, 'meta_manter': 33},      # Posição 5
     
-    # Posições 6 e 7 (Desceram 1 nível)
-    'aura':      {'ciclo': 1, 'meta_up': 42, 'meta_manter': 38},      # Posição 6 (Ocupa vaga do antigo '!')
-    'all wild':  {'ciclo': 1, 'meta_up': 45, 'meta_manter': 42},      # Posição 7 (Ocupa vaga do antigo 'aura')
+    # Posições 6 e 7
+    'aura':      {'ciclo': 1, 'meta_up': 42, 'meta_manter': 38},      # Posição 6
+    'all wild':  {'ciclo': 1, 'meta_up': 45, 'meta_manter': 42},      # Posição 7
     
-    # Posições 8 e 9 (Cute e Mello)
-    'cute':      {'ciclo': 1, 'meta_up': 51, 'meta_manter': 45},      # Posição 8 (Desceu, ocupa vaga do antigo 'all wild')
-    'mello':     {'ciclo': 1, 'meta_up': 56, 'meta_manter': 51},      # Posição 9 (Subiu, ocupa vaga do antigo 'cute')
+    # Posições 8 e 9
+    'cute':      {'ciclo': 1, 'meta_up': 51, 'meta_manter': 45},      # Posição 8
+    'mello':     {'ciclo': 1, 'meta_up': 56, 'meta_manter': 51},      # Posição 9
     
-    # Posições 10 a 12 (Desceram 1 nível)
-    'void':      {'ciclo': 1, 'meta_up': 60, 'meta_manter': 56},      # Posição 10 (Ocupa vaga do antigo '$')
-    'dawn':      {'ciclo': 1, 'meta_up': 64, 'meta_manter': 60},      # Posição 11 (Ocupa vaga do antigo 'void')
-    'upper':     {'ciclo': 1, 'meta_up': 67, 'meta_manter': 64},      # Posição 12 (Ocupa vaga do antigo 'dawn')
+    # Posições 10 a 12
+    'void':      {'ciclo': 1, 'meta_up': 60, 'meta_manter': 56},      # Posição 10
+    'dawn':      {'ciclo': 1, 'meta_up': 64, 'meta_manter': 60},      # Posição 11
+    'upper':     {'ciclo': 1, 'meta_up': 67, 'meta_manter': 64},      # Posição 12
     
     # Posição 13 (Topo)
-    'Light':     {'ciclo': 1, 'meta_up': 72, 'meta_manter': 67},      # Posição 13 (Subiu, ocupa vaga do antigo 'upper')
+    'Light':     {'ciclo': 1, 'meta_up': 72, 'meta_manter': 67},      # Posição 13
 }
 
 # Lista ordenada do Menor para o Maior
@@ -50,7 +49,7 @@ COLUNAS_PADRAO = [
 ]
 
 col_usuario = 'usuario'
-col_user_id = 'user_id' # ID do Usuário
+col_user_id = 'user_id'
 col_cargo = 'cargo'
 col_sit = 'situação'
 col_sem = 'Semana_Atual'
@@ -111,6 +110,9 @@ def carregar_dados():
             df.insert(loc, col_user_id, 'N/A')
             
         df = df.reindex(columns=COLUNAS_PADRAO, fill_value='0.0')
+        
+        # --- CORREÇÃO DE BUG: Forçar coluna usuario para string ---
+        df[col_usuario] = df[col_usuario].astype(str)
         
         cols_to_convert = [col_sem, col_horas_acum, col_horas_semana, col_horas_final]
         for col in cols_to_convert:
@@ -215,7 +217,8 @@ with col1:
         st.markdown("---")
         if st.button("Adicionar Membro", type="secondary", use_container_width=True):
             if usuario_input_add:
-                if usuario_input_add in df[col_usuario].values:
+                # Verificação segura convertendo para string
+                if usuario_input_add in df[col_usuario].astype(str).values:
                     st.error(f"O membro '{usuario_input_add}' já existe. Use a aba 'Upar'.")
                 else:
                     novo_dado_add = {
@@ -243,10 +246,12 @@ with col1:
     # === ABA 2: ATUALIZAR/UPAR MEMBRO EXISTENTE ===
     with tab_update:
         
-        opcoes_usuarios = ['-- Selecione o Membro --'] + sorted(df[col_usuario].unique().tolist()) 
+        # --- CORREÇÃO DO ERRO AQUI: .astype(str) antes de ordenar ---
+        lista_usuarios_str = df[col_usuario].dropna().astype(str).unique().tolist()
+        opcoes_usuarios = ['-- Selecione o Membro --'] + sorted(lista_usuarios_str)
         
         try:
-            default_index = opcoes_usuarios.index(st.session_state.usuario_selecionado_id_call)
+            default_index = opcoes_usuarios.index(str(st.session_state.usuario_selecionado_id_call))
         except ValueError:
             default_index = 0
             
@@ -260,9 +265,12 @@ with col1:
         
         st.session_state.usuario_selecionado_id_call = usuario_selecionado
 
-        if usuario_selecionado != '-- Selecione o Membro --' and not df.empty and usuario_selecionado in df[col_usuario].values:
+        # Comparação segura com string
+        if usuario_selecionado != '-- Selecione o Membro --' and not df.empty and usuario_selecionado in df[col_usuario].astype(str).values:
             
-            dados_atuais = df[df[col_usuario] == usuario_selecionado].iloc[0]
+            # Filtro seguro
+            dados_atuais = df[df[col_usuario].astype(str) == usuario_selecionado].iloc[0]
+            
             usuario_input = dados_atuais[col_usuario]
             user_id_atual = dados_atuais.get(col_user_id, 'N/A')
             
@@ -330,7 +338,8 @@ with col1:
         if usuario_input is not None:
             
             df_reloaded = carregar_dados() 
-            dados_atuais = df_reloaded[df_reloaded[col_usuario] == st.session_state.select_user_update_call].iloc[0]
+            # Filtro seguro com string
+            dados_atuais = df_reloaded[df_reloaded[col_usuario].astype(str) == str(st.session_state.select_user_update_call)].iloc[0]
             
             usuario_input = dados_atuais[col_usuario]
             user_id_salvar = dados_atuais.get(col_user_id, 'N/A')
@@ -377,9 +386,6 @@ with col1:
                     novo_cargo = cargo_input 
                     
             else:
-                # Em andamento (embora com ciclo 1 isso raramente ocorra se meta não for atingida em 1 sem)
-                # Se não atingiu meta em 1 semana, tecnicamente 'REBAIXADO' ou 'MANTEVE' dependendo da regra
-                # Mas aqui, como o ciclo é 1, a função avaliar_situacao já retorna o veredito final.
                 nova_semana = 1
                 novo_horas_acumuladas = horas_acumuladas_total
 
@@ -398,7 +404,9 @@ with col1:
             }
             
             # Atualiza o DataFrame e salva
-            df.loc[df[df[col_usuario] == usuario_input].index[0]] = novo_dado
+            # Uso de index seguro
+            idx_to_update = df[df[col_usuario].astype(str) == str(usuario_input)].index[0]
+            df.loc[idx_to_update] = novo_dado
 
             if salvar_dados(df):
                 limpar_campos_interface_call()
@@ -417,7 +425,7 @@ with col1:
 
     
     # ----------------------------------------------------
-    # --- NOVO BLOCO: VISUALIZAÇÃO DE METAS ---
+    # --- VISUALIZAÇÃO DE METAS ---
     # ----------------------------------------------------
     st.markdown("---")
     
@@ -444,14 +452,16 @@ with col1:
             st.session_state.confirm_reset = False
 
         if not df.empty:
-            opcoes_remocao = sorted(df[col_usuario].unique().tolist())
+            # --- CORREÇÃO DO ERRO AQUI TAMBÉM ---
+            opcoes_remocao = sorted(df[col_usuario].dropna().astype(str).unique().tolist())
             usuario_a_remover = st.selectbox("Selecione o Usuário para Remover", ['-- Selecione --'] + opcoes_remocao, key='remove_user_select')
             
             if usuario_a_remover != '-- Selecione --':
                 st.warning(f"Confirme a remoção de **{usuario_a_remover}**. Permanente.")
                 
                 if st.button(f"Confirmar Remoção de {usuario_a_remover}", type="secondary", key='final_remove_button', use_container_width=True):
-                    df = df[df[col_usuario] != usuario_a_remover]
+                    # Filtro seguro com string
+                    df = df[df[col_usuario].astype(str) != str(usuario_a_remover)]
                     salvar_dados(df) 
                     st.success(f"Membro {usuario_a_remover} removido com sucesso!")
                     st.rerun()
