@@ -5,7 +5,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # ==============================================================================
-# --- 1. CONFIGURAÇÃO DE ESTÉTICA (CORREÇÃO: FONTE PADRÃO NO EXPANDER) ---
+# --- 1. CONFIGURAÇÃO DE ESTÉTICA (DARK/GOTHIC) ---
 # ==============================================================================
 def configurar_estetica_visual():
     background_url = "https://images4.alphacoders.com/740/thumb-1920-740591.png"
@@ -29,39 +29,7 @@ def configurar_estetica_visual():
         button[title="View fullscreen"] {{ display: none !important; }}
         label[data-testid="stLabel"] {{ display: none !important; }}
 
-        /* === 3. EXPANDER (TABELA DE METAS) - VOLTANDO AO PADRÃO === */
-        div[data-testid="stExpander"] {{
-            background-color: #000000 !important;
-            border: 1px solid #444 !important;
-            border-radius: 5px;
-        }}
-        
-        /* AQUI: Usar fonte NORMAL para evitar bugs */
-        div[data-testid="stExpander"] summary {{
-            font-family: "Source Sans Pro", sans-serif !important; /* Fonte Padrão Limpa */
-            color: #ffffff !important;
-            font-size: 16px !important;
-            font-weight: bold !important;
-        }}
-        
-        /* Garantir que o ícone da seta (SVG) apareça corretamente em branco */
-        div[data-testid="stExpander"] summary svg {{
-            display: inline-block !important;
-            fill: #ffffff !important;
-            opacity: 1 !important;
-            width: 1rem !important;
-            height: 1rem !important;
-        }}
-        
-        /* Hover Vermelho (Opcional, para estilo) */
-        div[data-testid="stExpander"] summary:hover {{
-            color: #ff0000 !important;
-        }}
-        div[data-testid="stExpander"] summary:hover svg {{
-            fill: #ff0000 !important;
-        }}
-
-        /* === 4. DROPDOWNS E MENUS === */
+        /* === 3. DROPDOWNS E MENUS === */
         div[data-baseweb="select"] > div {{
             background-color: #000000 !important;
             color: #ffffff !important;
@@ -80,7 +48,7 @@ def configurar_estetica_visual():
             color: #ff0000 !important;
         }}
 
-        /* === 5. CAIXAS DE AVISO (PRETAS) === */
+        /* === 4. CAIXAS DE AVISO (PRETAS) === */
         div[data-testid="stAlert"] {{
             background-color: #000000 !important;
             color: #ffffff !important;
@@ -92,35 +60,36 @@ def configurar_estetica_visual():
             color: #ffffff !important;
         }}
 
-        /* === 6. TABELAS (PRETO TOTAL) === */
+        /* === 5. TABELAS (PRETO TOTAL) === */
         div[data-testid="stDataFrame"] {{
             background-color: #000000 !important;
             border: 1px solid #ffffff !important;
         }}
+        /* Cabeçalho */
         [data-testid="stDataFrame"] th, [data-testid="stDataFrame"] thead tr {{
             background-color: #050505 !important; 
             color: #ffffff !important;
             border-bottom: 1px solid #ffffff !important;
         }}
+        /* Células */
         [data-testid="stDataFrame"] td {{
             background-color: #000000 !important;
             color: #dddddd !important;
             border-bottom: 1px solid #222 !important;
         }}
 
-        /* === 7. TIPOGRAFIA GERAL (GÓTICA NO RESTO DO SITE) === */
+        /* === 6. TIPOGRAFIA GERAL === */
         h1, h2, h3, h4, h5, h6 {{
             color: #ffffff !important;
             font-family: 'UnifrakturMaguntia', cursive !important;
             text-shadow: 2px 2px 0px #000000;
         }}
-        /* Textos comuns continuam courier */
         p, label, span, div, caption {{
             color: #eeeeee !important;
             font-family: 'Courier New', monospace !important;
         }}
 
-        /* === 8. INPUTS E BOTÕES === */
+        /* === 7. INPUTS E BOTÕES === */
         .stTextInput input, .stNumberInput input {{
             background-color: #111111 !important;
             color: #ffffff !important;
@@ -146,6 +115,7 @@ def configurar_estetica_visual():
             font-family: 'UnifrakturMaguntia', cursive !important;
         }}
         
+        /* Container Geral */
         div[data-testid="stVerticalBlockBorderWrapper"] {{
             background-color: rgba(0,0,0,0.85) !important;
             border: 1px solid #444 !important;
@@ -379,9 +349,9 @@ with col_upar:
         msgs = metas['meta_up'] * MENSAGENS_POR_PONTO
         metas_data.append({"Cargo (#)": f"{cargo} ({idx+1})", "Meta UP (msgs)": f"{msgs:,.0f}", "Msgs/Dia": f"{msgs/7:,.0f}"})
     
-    # EXPANDER COM FONTE PADRÃO (SEM BUG DO ÍCONE)
-    with st.expander("Ver Tabela de Metas 📋", expanded=False):
-        st.dataframe(pd.DataFrame(metas_data), hide_index=True, use_container_width=True)
+    # --- TABELA DE METAS FIXA (SEM EXPANDER) ---
+    st.markdown("##### 📋 Tabela de Metas")
+    st.dataframe(pd.DataFrame(metas_data), hide_index=True, use_container_width=True)
     
     st.markdown("---")
     
@@ -447,7 +417,6 @@ with col_upar:
             if st.button("Processar Semana", type="primary", key="save_update_button", use_container_width=True):
                 st.session_state.salvar_button_clicked = True
         else:
-            # CAIXA REPETIDA REMOVIDA
             usuario_input_upar = None
             
     if st.session_state.salvar_button_clicked and usuario_input_upar:
