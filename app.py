@@ -5,7 +5,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # ==============================================================================
-# --- 1. CONFIGURAÇÃO DE ESTÉTICA (CORREÇÕES FINAIS) ---
+# --- 1. CONFIGURAÇÃO DE ESTÉTICA (CORREÇÃO FINAL: EXPANDER E REMOÇÃO DE ÍCONES) ---
 # ==============================================================================
 def configurar_estetica_visual():
     background_url = "https://images4.alphacoders.com/740/thumb-1920-740591.png"
@@ -24,40 +24,64 @@ def configurar_estetica_visual():
             background-attachment: fixed !important;
         }}
 
-        /* === 2. LIMPEZA VISUAL === */
+        /* === 2. LIMPEZA TOTAL (UI) === */
         [data-testid="stElementToolbar"] {{ display: none !important; }}
         button[title="View fullscreen"] {{ display: none !important; }}
-        /* Esconder o label pequeno das caixas de seleção para não repetir o texto */
-        label[data-testid="stLabel"] {{
-            display: none !important;
-        }}
-
-        /* === 3. EXPANDER (TABELA DE METAS) - CORREÇÃO === */
+        /* Esconder labels padrão para evitar repetição */
+        label[data-testid="stLabel"] {{ display: none !important; }}
+        
+        /* === 3. EXPANDER (TABELA DE METAS) - CORREÇÃO CRÍTICA DO ÍCONE === */
         div[data-testid="stExpander"] {{
             background-color: #000000 !important;
             border: 1px solid #444 !important;
             border-radius: 5px;
         }}
-        div[data-testid="stExpander"] summary {{
-            color: #ffffff !important;
+        
+        /* ESCONDER A SETA (ÍCONE) QUE VIROU TEXTO "KEYBOARD..." */
+        div[data-testid="stExpander"] summary svg {{
+            display: none !important;
+            width: 0 !important;
+            height: 0 !important;
+            opacity: 0 !important;
         }}
-        /* Mostrar o TEXTO do título */
-        div[data-testid="stExpander"] summary p, div[data-testid="stExpander"] summary span {{
+        
+        /* ESTILIZAR APENAS O TEXTO DO TÍTULO */
+        div[data-testid="stExpander"] summary p, 
+        div[data-testid="stExpander"] summary span {{
             font-family: 'UnifrakturMaguntia', cursive !important;
             font-size: 22px !important;
             color: #ffffff !important;
-            display: block !important; /* Forçar aparecer */
+            margin-left: 0 !important; /* Remove margem deixada pelo ícone */
         }}
-        /* Esconder APENAS A SETA (Ícone SVG) */
-        div[data-testid="stExpander"] summary svg {{
-            display: none !important;
-        }}
-        /* Hover Vermelho */
-        div[data-testid="stExpander"] summary:hover p, div[data-testid="stExpander"] summary:hover span {{
+        
+        /* Hover Vermelho no Título */
+        div[data-testid="stExpander"] summary:hover p {{
             color: #ff0000 !important;
         }}
 
-        /* === 4. CAIXAS DE AVISO (PRETAS) === */
+        /* === 4. DROPDOWNS E MENUS (PRETO TOTAL) === */
+        div[data-baseweb="select"] > div {{
+            background-color: #000000 !important;
+            color: #ffffff !important;
+            border: 1px solid #ffffff !important;
+        }}
+        /* Fundo da lista de opções */
+        div[data-baseweb="menu"], div[data-baseweb="popover"], ul {{
+            background-color: #000000 !important;
+            border: 1px solid #333 !important;
+        }}
+        /* Opção individual */
+        li[role="option"] {{
+            background-color: #000000 !important;
+            color: #ffffff !important;
+        }}
+        /* Hover na opção */
+        li[role="option"]:hover, li[role="option"][aria-selected="true"] {{
+            background-color: #333333 !important;
+            color: #ff0000 !important;
+        }}
+
+        /* === 5. CAIXAS DE AVISO (PRETAS) === */
         div[data-testid="stAlert"] {{
             background-color: #000000 !important;
             color: #ffffff !important;
@@ -69,44 +93,25 @@ def configurar_estetica_visual():
             color: #ffffff !important;
         }}
 
-        /* === 5. MENUS E DROPDOWNS === */
-        div[data-baseweb="select"] > div {{
-            background-color: #000000 !important;
-            color: #ffffff !important;
-            border: 1px solid #ffffff !important;
-        }}
-        div[data-baseweb="menu"], div[data-baseweb="popover"], ul {{
-            background-color: #000000 !important;
-            border: 1px solid #333 !important;
-        }}
-        li[role="option"] {{
-            background-color: #000000 !important;
-            color: #ffffff !important;
-        }}
-        li[role="option"]:hover, li[role="option"][aria-selected="true"] {{
-            background-color: #333333 !important;
-            color: #ff0000 !important;
-        }}
-
-        /* === 6. TABELAS (REMOVER AZUL DO CABEÇALHO) === */
+        /* === 6. TABELAS (PRETO TOTAL) === */
         div[data-testid="stDataFrame"] {{
             background-color: #000000 !important;
             border: 1px solid #ffffff !important;
         }}
-        /* Cabeçalho da tabela (Aonde ficava azul) */
+        /* Cabeçalho */
         [data-testid="stDataFrame"] th, [data-testid="stDataFrame"] thead tr {{
             background-color: #050505 !important; 
             color: #ffffff !important;
             border-bottom: 1px solid #ffffff !important;
         }}
-        /* Linhas da tabela */
+        /* Células */
         [data-testid="stDataFrame"] td {{
             background-color: #000000 !important;
             color: #dddddd !important;
             border-bottom: 1px solid #333 !important;
         }}
 
-        /* === 7. TEXTOS E TÍTULOS === */
+        /* === 7. TIPOGRAFIA === */
         h1, h2, h3, h4, h5, h6 {{
             color: #ffffff !important;
             font-family: 'UnifrakturMaguntia', cursive !important;
@@ -143,13 +148,12 @@ def configurar_estetica_visual():
             font-family: 'UnifrakturMaguntia', cursive !important;
         }}
         
-        /* Remover fundo dos containers para ficar clean */
+        /* Container Geral (Borda fina) */
         div[data-testid="stVerticalBlockBorderWrapper"] {{
             background-color: rgba(0,0,0,0.85) !important;
             border: 1px solid #444 !important;
             border-radius: 5px;
         }}
-
     </style>
     """, unsafe_allow_html=True)
 
@@ -295,7 +299,7 @@ with col_ferramentas:
     
     with st.container(border=True):
         st.markdown("##### ➕ Adicionar Membro")
-        usuario_input_add = st.text_input("Nome", key='usuario_input_add') # Label limpo
+        usuario_input_add = st.text_input("Nome", key='usuario_input_add')
         user_id_input_add = st.text_input("ID (Opcional)", key='user_id_input_add', value='N/A')
         cargo_input_add = st.selectbox("Cargo Inicial", CARGOS_LISTA, index=cargo_inicial_default, key='cargo_select_add')
         
@@ -321,7 +325,6 @@ with col_ferramentas:
         st.markdown("##### ✏️ Editar Nome")
         if not df.empty:
             lista_edit = sorted(df[col_usuario].dropna().astype(str).unique().tolist())
-            # CORREÇÃO: Ocultamos o label "Quem mudou de nome?" via CSS, mas mantemos o selectbox funcionando
             st.markdown("Selecione o membro antigo:") 
             usuario_para_editar = st.selectbox("Selecione para editar", lista_edit, key='user_edit_select', label_visibility="collapsed")
             
@@ -379,7 +382,7 @@ with col_upar:
         msgs = metas['meta_up'] * MENSAGENS_POR_PONTO
         metas_data.append({"Cargo (#)": f"{cargo} ({idx+1})", "Meta UP (msgs)": f"{msgs:,.0f}", "Msgs/Dia": f"{msgs/7:,.0f}"})
     
-    # EXPANDER (Texto agora visível, seta invisível)
+    # EXPANDER COM ÍCONE ESCONDIDO E FONTE GÓTICA NO TÍTULO
     with st.expander("Ver Tabela de Metas 📋", expanded=False):
         st.dataframe(pd.DataFrame(metas_data), hide_index=True, use_container_width=True)
     
@@ -391,14 +394,13 @@ with col_upar:
         try: def_idx = opcoes_usuarios.index(str(st.session_state.usuario_selecionado_id))
         except: def_idx = 0
         
-        # CORREÇÃO: Título manual, selectbox com label oculto
         st.markdown("##### Selecione o Membro")
         usuario_selecionado = st.selectbox(
-            "Selecione o Membro (Oculto)", # Label interno (oculto via CSS/parametro)
+            "Selecione o Membro (Oculto)",
             opcoes_usuarios, 
             index=def_idx, 
             key='select_user_update',
-            label_visibility="collapsed", # Isso remove a repetição visual
+            label_visibility="collapsed",
             on_change=lambda: st.session_state.__setitem__('usuario_selecionado_id', st.session_state.select_user_update)
         )
         st.session_state.usuario_selecionado_id = usuario_selecionado
@@ -448,7 +450,7 @@ with col_upar:
             if st.button("Processar Semana", type="primary", key="save_update_button", use_container_width=True):
                 st.session_state.salvar_button_clicked = True
         else:
-            st.info("Selecione um membro.")
+            # REMOVIDA A CAIXA "SELECIONE UM MEMBRO" REPETITIVA
             usuario_input_upar = None
             
     if st.session_state.salvar_button_clicked and usuario_input_upar:
@@ -492,7 +494,5 @@ with col_ranking:
         c_ord = {c: i for i, c in enumerate(CARGOS_LISTA)}
         df_d['rank'] = df_d[col_cargo].map(c_ord)
         df_d = df_d.sort_values(by=[col_pontos_final, 'rank'], ascending=[False, False])
-        
-        # Cores customizadas mantidas
         st.dataframe(df_d.style.map(lambda x: 'background-color:rgba(50,205,50,0.3);color:#ccffcc' if 'UPADO' in str(x) else ('background-color:rgba(200,0,0,0.4);color:#ffcccc' if 'REBAIXADO' in str(x) else ('background-color:rgba(218,165,32,0.3);color:#ffffcc' if 'MANTEVE' in str(x) else '')), subset=[col_sit]).format(precision=1), use_container_width=True, height=600, column_order=[col_usuario, col_user_id, col_cargo, col_sit, col_pontos_acum, col_pontos_sem, 'Data_Ultima_Atualizacao'])
     else: st.warning("Sem dados.")
