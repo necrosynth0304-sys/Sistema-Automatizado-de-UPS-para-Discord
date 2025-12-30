@@ -1,14 +1,3 @@
-Você tem razão em pedir para revisar. Se "não mudou nada", é muito provável que o site onde a imagem está hospedada (AlphaCoders) tenha **bloqueio contra hotlink** (eles impedem que a imagem abra dentro de outros sites para economizar banda), ou o Streamlit não aceitou os seletores CSS antigos.
-
-Revisei o código e fiz **3 alterações críticas** para garantir que funcione agora:
-
-1. **Fundo de Segurança (Fallback):** Coloquei o fundo do site como **PRETO (#000000)** por padrão. Se a imagem não carregar (por bloqueio do link), o site **vai ficar preto** em vez de branco. Assim você sabe que o código funcionou.
-2. **Seletores CSS "Nucleares":** Mudei a forma como o CSS encontra os elementos (`.stApp` em vez de IDs complexos). Isso força a mudança visual com mais agressividade.
-3. **Local da Chamada:** Garanti que a função de estética é a **primeira coisa** a rodar logo após a configuração da página.
-
-Aqui está o código revisado e reforçado.
-
-```python
 import streamlit as st
 import pandas as pd
 from datetime import datetime
@@ -16,10 +5,10 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # ==============================================================================
-# --- 1. CONFIGURAÇÃO DE ESTÉTICA (REVISADA E REFORÇADA) 📓 ---
+# --- 1. CONFIGURAÇÃO DE ESTÉTICA (SÓLIDA E DARK) ---
 # ==============================================================================
 def configurar_estetica_visual():
-    # Link da imagem (Se não carregar, o fundo ficará PRETO automaticamente)
+    # Link da imagem solicitada
     background_url = "https://images4.alphacoders.com/153/thumb-1920-153254.jpg"
 
     st.markdown(f"""
@@ -27,9 +16,9 @@ def configurar_estetica_visual():
         /* Importar Fonte Gótica */
         @import url('https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&display=swap');
 
-        /* === 1. FORÇAR O FUNDO GERAL (GLOBAL) === */
+        /* === FUNDO DA PÁGINA (FORÇADO) === */
         .stApp {{
-            background-color: #000000 !important; /* SE A IMAGEM FALHAR, FICA PRETO */
+            background-color: #000000 !important; /* Se a imagem falhar, fundo preto */
             background-image: url("{background_url}") !important;
             background-size: cover !important;
             background-position: center !important;
@@ -37,45 +26,49 @@ def configurar_estetica_visual():
             background-attachment: fixed !important;
         }}
 
-        /* === 2. TÍTULOS E TEXTOS === */
+        /* === CAIXAS E CONTAINERS (PRETO SÓLIDO) === */
+        div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"] {{
+            background-color: #000000 !important; /* Preto Sólido */
+            border: 1px solid #444 !important;
+            border-radius: 8px;
+            padding: 15px;
+        }}
+
+        /* === TÍTULOS (BRANCOS) === */
         h1, h2, h3, h4, h5, h6 {{
             color: #ffffff !important;
             font-family: 'UnifrakturMaguntia', cursive !important;
-            text-shadow: 3px 3px 0px #000000;
+            font-weight: 400;
+            letter-spacing: 1.5px;
+            text-shadow: 2px 2px 0px #000000;
         }}
         
-        p, label, span, div {{
-            color: #eeeeee !important;
-            font-family: 'Courier New', monospace !important;
+        /* === TEXTOS GERAIS === */
+        p, div, label, span, li, caption {{
+            color: #dddddd !important;
+            font-family: 'Courier New', monospace !important; 
+            font-weight: bold;
         }}
 
-        /* === 3. CAIXAS E CONTAINERS (PRETO SÓLIDO) === */
-        /* Isso garante que o fundo das ferramentas seja preto e legível */
-        div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"] {{
-            background-color: #050505 !important; /* Preto quase absoluto */
-            border: 1px solid #333 !important;
-            border-radius: 5px;
-        }}
-
-        /* === 4. INPUTS (DIGITAÇÃO) === */
+        /* === INPUTS (CAIXAS DE DIGITAÇÃO) === */
         .stTextInput input, .stNumberInput input {{
-            background-color: #111111 !important;
+            background-color: #1a1a1a !important;
             color: #ffffff !important;
-            border: 1px solid #555 !important;
+            border: 1px solid #ffffff !important;
         }}
         
-        /* === 5. DROPDOWNS (SELEÇÃO) === */
+        /* === DROPDOWNS === */
         div[data-baseweb="select"] > div {{
-            background-color: #111111 !important;
-            color: white !important;
-            border: 1px solid #555 !important;
+            background-color: #1a1a1a !important;
+            color: #ffffff !important;
+            border: 1px solid #ffffff !important;
         }}
-
-        /* === 6. BOTÕES (VERMELHO E PRETO) === */
+        
+        /* === BOTÕES (VERMELHO E PRETO) === */
         button {{
             background-color: #000000 !important;
-            color: #ff0000 !important; /* Vermelho */
-            border: 1px solid #ff0000 !important;
+            color: #ff0000 !important;
+            border: 2px solid #ff0000 !important;
             font-family: 'UnifrakturMaguntia', cursive !important;
             font-size: 18px !important;
             transition: 0.3s;
@@ -83,22 +76,37 @@ def configurar_estetica_visual():
         button:hover {{
             background-color: #ff0000 !important;
             color: #000000 !important;
+            box-shadow: 0 0 15px #ff0000;
             border-color: #ffffff !important;
         }}
 
-        /* === 7. TABELA DE DADOS === */
+        /* === TABELAS === */
         div[data-testid="stDataFrame"] {{
             background-color: #000000 !important;
+            border: 1px solid #ffffff;
+        }}
+
+        /* === MÉTRICAS === */
+        [data-testid="stMetricValue"] {{
+            color: #ff0000 !important;
+            font-family: 'UnifrakturMaguntia', cursive !important;
+        }}
+        
+        /* === ALERTAS === */
+        .stAlert {{
+            background-color: #000000 !important;
+            color: #ffffff !important;
+            border: 1px solid #ff0000;
         }}
         
     </style>
     """, unsafe_allow_html=True)
 
 # ==============================================================================
-# --- 2. CONFIGURAÇÕES DO SISTEMA (DADOS E LÓGICA) ---
+# --- 2. DADOS E LÓGICA ---
 # ==============================================================================
 
-# METAS REALISTAS (Light = 8.000 msgs)
+# METAS REALISTAS
 METAS_PONTUACAO = {
     'f*ck':      {'ciclo': 1, 'meta_up': 10, 'meta_manter': 7},
     '100%':      {'ciclo': 1, 'meta_up': 17, 'meta_manter': 13},
@@ -141,11 +149,11 @@ col_bonus_sem = 'Bonus_Semana'
 col_mult_ind = 'Multiplicador_Individual'
 col_pontos_final = 'Pontos_Total_Final'
 
-# --- CONEXÃO GOOGLE SHEETS ---
+# --- CONEXÃO ---
 @st.cache_resource(ttl=3600)
 def get_gsheets_client():
     if "gcp_service_account" not in st.secrets or "gsheets_config" not in st.secrets:
-        st.error("Secrets não configurados no Streamlit.")
+        st.error("Secrets não configurados.")
         return None
     try:
         creds_json = st.secrets["gcp_service_account"]
@@ -153,7 +161,7 @@ def get_gsheets_client():
         credentials = Credentials.from_service_account_info(creds_json, scopes=scopes)
         return gspread.authorize(credentials)
     except Exception as e:
-        st.error(f"Erro de Conexão: {e}")
+        st.error(f"Erro Conexão: {e}")
         return None
 
 gc = get_gsheets_client()
@@ -175,7 +183,6 @@ def carregar_dados(sheet_name):
             df.insert(loc, col_user_id, 'N/A')
         
         df = df.reindex(columns=COLUNAS_PADRAO, fill_value='0.0')
-        # GARANTIR QUE USUÁRIO SEJA STRING (Evita erro de sort)
         df[col_usuario] = df[col_usuario].astype(str)
         
         cols_num = [col_sem, col_pontos_acum, col_pontos_sem, col_bonus_sem, col_mult_ind, col_pontos_final]
@@ -183,7 +190,7 @@ def carregar_dados(sheet_name):
             if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
         return df
     except Exception as e:
-        st.error(f"Erro ao carregar dados: {e}")
+        st.error(f"Erro carregar: {e}")
         return pd.DataFrame(columns=COLUNAS_PADRAO)
 
 def salvar_dados(df, sheet_name):
@@ -199,7 +206,7 @@ def salvar_dados(df, sheet_name):
         st.cache_data.clear()
         return True
     except Exception as e:
-        st.error(f"Erro ao salvar: {e}")
+        st.error(f"Erro salvar: {e}")
         return False
 
 def calcular_pontuacao_semana(pontos_base, bonus, mult_ind):
@@ -216,12 +223,11 @@ def limpar_campos_interface():
         if key in st.session_state: del st.session_state[key]
 
 # ==============================================================================
-# --- 3. INTERFACE PRINCIPAL ---
+# --- 3. INTERFACE ---
 # ==============================================================================
 st.set_page_config(page_title="Sistema de Ups", layout="wide")
 
-# >>> AQUI ESTÁ A CHAMADA DA ESTÉTICA <<<
-# Se isso não rodar, o site fica branco.
+# >>> CHAMADA DA ESTÉTICA <<<
 configurar_estetica_visual()
 
 st.title("Sistema de Ups")
@@ -240,7 +246,7 @@ usuario_input_upar = None
 with col_ferramentas:
     st.subheader("Ferramentas")
     
-    # CONTAINER: ADICIONAR
+    # ADICIONAR
     with st.container(border=True):
         st.markdown("##### ➕ Adicionar Membro")
         usuario_input_add = st.text_input("Nome", key='usuario_input_add')
@@ -265,7 +271,7 @@ with col_ferramentas:
     
     st.markdown("---")
 
-    # CONTAINER: EDITAR NOME
+    # EDITAR NOME
     with st.container(border=True):
         st.markdown("##### ✏️ Editar Nome")
         
@@ -291,7 +297,7 @@ with col_ferramentas:
 
     st.markdown("---")
 
-    # CONTAINER: REMOVER
+    # REMOVER
     with st.container(border=True):
         st.markdown("##### 🗑️ Remover / Reset")
         if 'confirm_reset' not in st.session_state: st.session_state.confirm_reset = False
@@ -344,7 +350,7 @@ with col_upar:
             with st.container():
                 if dados[col_cargo] in METAS_PONTUACAO:
                     st.markdown(f"**Membro:** `{usuario_input_upar}`") 
-                    # ID EM VERDE (DEATH NOTE: Cores de L/Computador)
+                    # ID EM VERDE
                     st.markdown(f"""<div style="margin-bottom: 5px;"><strong>ID:</strong> <span style="color: #32CD32; font-family: 'Courier New'; font-weight: bold;">{dados.get(col_user_id, 'N/A')}</span></div>""", unsafe_allow_html=True)
                     
                     c_idx = CARGOS_LISTA.index(dados[col_cargo])
@@ -429,5 +435,3 @@ with col_ranking:
         # Cores customizadas mantidas
         st.dataframe(df_d.style.map(lambda x: 'background-color:rgba(50,205,50,0.2);color:lightgreen' if 'UPADO' in str(x) else ('background-color:rgba(139,0,0,0.4);color:red' if 'REBAIXADO' in str(x) else ('background-color:rgba(218,165,32,0.2);color:gold' if 'MANTEVE' in str(x) else '')), subset=[col_sit]).format(precision=1), use_container_width=True, height=600, column_order=[col_usuario, col_user_id, col_cargo, col_sit, col_pontos_acum, col_pontos_sem, 'Data_Ultima_Atualizacao'])
     else: st.warning("Sem dados.")
-
-```
