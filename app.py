@@ -4,49 +4,131 @@ from datetime import datetime
 import gspread
 from google.oauth2.service_account import Credentials
 
-# --- CONFIGURAÇÃO DAS REGRAS DO SISTEMA (PONTUAÇÃO E CICLOS) ---
+# ==============================================================================
+# --- CONFIGURAÇÃO DE ESTÉTICA (DEATH NOTE THEME) 📓🍎 ---
+# ==============================================================================
+def configurar_estetica_death_note():
+    # URL da Imagem (Ryuk)
+    background_url = "https://images2.alphacoders.com/153/thumb-1920-153252.jpg"
 
-# NOVO MAPA DE PONTUAÇÃO - VERSÃO "REALISTA" (Original Aprovada)
-# Conversão: 1 Ponto = 50 Mensagens | Ciclo: 1 Semana
+    st.markdown(f"""
+    <style>
+        /* Importar a Fonte Gótica (UnifrakturMaguntia) */
+        @import url('https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&display=swap');
+
+        /* === FUNDO DA PÁGINA === */
+        [data-testid="stAppViewContainer"] {{
+            background-image: url("{background_url}");
+            background-size: cover;
+            background-position: center;
+            background-repeat: no-repeat;
+            background-attachment: fixed;
+        }}
+        
+        /* Camada escura (Overlay) para legibilidade */
+        [data-testid="stAppViewContainer"]::before {{
+            content: "";
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background-color: rgba(0, 0, 0, 0.85); /* 85% Escuro */
+            z-index: -1;
+        }}
+
+        /* === TÍTULOS (H1-H6) === */
+        h1, h2, h3, h4, h5, h6 {{
+            color: #e0e0e0 !important;
+            font-family: 'UnifrakturMaguntia', cursive !important;
+            font-weight: 400;
+            letter-spacing: 2px;
+            text-shadow: 3px 3px 5px #000000;
+        }}
+        
+        /* === CORPO DO TEXTO (Estilo Investigação) === */
+        p, div, label, span, caption {{
+            color: #cccccc !important;
+            font-family: 'Courier New', monospace !important; 
+        }}
+
+        /* === INPUTS E CAIXAS DE SELEÇÃO === */
+        .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] {{
+            background-color: #0a0a0a !important; 
+            color: #ffffff !important;
+            border: 1px solid #444 !important;
+            font-family: 'Courier New', monospace !important;
+        }}
+        
+        /* === BOTÃO PRINCIPAL (VERMELHO SANGUE) === */
+        div.stButton > button:first-child {{
+            background-color: #880808 !important; 
+            color: white !important;
+            border: 1px solid #440000 !important;
+            font-family: 'UnifrakturMaguntia', cursive !important;
+            font-size: 18px !important;
+            transition: 0.3s;
+        }}
+        
+        div.stButton > button:first-child:hover {{
+            background-color: #ff0000 !important;
+            box-shadow: 0 0 15px #ff0000;
+            border-color: #fff !important;
+        }}
+        
+        /* === TABELAS (DATAFRAME) === */
+        div[data-testid="stDataFrame"] {{
+            background-color: rgba(0, 0, 0, 0.7);
+            border: 1px solid #333;
+            border-radius: 5px;
+        }}
+
+        /* === METRICAS === */
+        [data-testid="stMetricValue"] {{
+            color: #ff3333 !important; /* Vermelho */
+            font-family: 'UnifrakturMaguntia', cursive !important;
+        }}
+        
+        /* === ALERTAS === */
+        .stAlert {{
+            background-color: #111 !important;
+            color: #eee !important;
+            border: 1px solid #333;
+        }}
+        
+    </style>
+    """, unsafe_allow_html=True)
+
+# ==============================================================================
+# --- CONFIGURAÇÃO DO SISTEMA ---
+# ==============================================================================
+
+# METAS REALISTAS (Light = 8.000 msgs/semana)
 METAS_PONTUACAO = {
-    # Posições 1 a 4 (Base)
     'f*ck':      {'ciclo': 1, 'meta_up': 10, 'meta_manter': 7},       # 500 / 350 msgs
     '100%':      {'ciclo': 1, 'meta_up': 17, 'meta_manter': 13},      # 850 / 650 msgs
     'woo':       {'ciclo': 1, 'meta_up': 25, 'meta_manter': 20},      # 1.250 / 1.000 msgs
     'sex':       {'ciclo': 1, 'meta_up': 35, 'meta_manter': 28},      # 1.750 / 1.400 msgs
-    
-    # Posições 5 a 7 (Intermediários)
     'note':      {'ciclo': 1, 'meta_up': 45, 'meta_manter': 36},      # 2.250 / 1.800 msgs
     'aura':      {'ciclo': 1, 'meta_up': 55, 'meta_manter': 44},      # 2.750 / 2.200 msgs
     'all wild':  {'ciclo': 1, 'meta_up': 66, 'meta_manter': 53},      # 3.300 / 2.650 msgs
-    
-    # Posições 8 a 10 (Avançados)
     'cute':      {'ciclo': 1, 'meta_up': 78, 'meta_manter': 62},      # 3.900 / 3.100 msgs
     'mello':     {'ciclo': 1, 'meta_up': 92, 'meta_manter': 74},      # 4.600 / 3.700 msgs
     'void':      {'ciclo': 1, 'meta_up': 106, 'meta_manter': 85},     # 5.300 / 4.250 msgs
-    
-    # Posições 11 a 13 (Elite)
     'dawn':      {'ciclo': 1, 'meta_up': 122, 'meta_manter': 98},     # 6.100 / 4.900 msgs
     'upper':     {'ciclo': 1, 'meta_up': 140, 'meta_manter': 112},    # 7.000 / 5.600 msgs
     'Light':     {'ciclo': 1, 'meta_up': 160, 'meta_manter': 128},    # 8.000 / 6.400 msgs
 }
 
-# Lista ordenada do Menor para o Maior
 CARGOS_LISTA = [
     'f*ck', '100%', 'woo', 'sex', 'note', 'aura', 'all wild', 
     'cute', 'mello', 
     'void', 'dawn', 'upper', 'Light'
 ]
 
-# --- CONSTANTES DE CONVERSÃO ---
 MENSAGENS_POR_PONTO = 50
-DIAS_POR_SEMANA = 7
-
-# --- NOME DA ABA PRINCIPAL ---
 SHEET_NAME_PRINCIPAL = "dados sistema"
 
-
-# --- CONSTANTES DE COLUNAS (DataFrame) ---
 COLUNAS_PADRAO = [
     'usuario', 'user_id', 'cargo', 'situação', 'Semana_Atual',
     'Pontos_Acumulados_Ciclo', 'Pontos_Semana', 'Bonus_Semana',
@@ -54,7 +136,7 @@ COLUNAS_PADRAO = [
 ]
 
 col_usuario = 'usuario'
-col_user_id = 'user_id' # ID do Usuário
+col_user_id = 'user_id'
 col_cargo = 'cargo'
 col_sit = 'situação'
 col_sem = 'Semana_Atual'
@@ -64,446 +146,288 @@ col_bonus_sem = 'Bonus_Semana'
 col_mult_ind = 'Multiplicador_Individual'
 col_pontos_final = 'Pontos_Total_Final'
 
-
-# --- FUNÇÕES DE CONEXÃO E LÓGICA ---
-
+# --- CONEXÃO ---
 @st.cache_resource(ttl=3600)
 def get_gsheets_client():
-    """Autoriza o cliente gspread."""
     if "gcp_service_account" not in st.secrets or "gsheets_config" not in st.secrets:
-        st.error("Configuração de secrets ausente. Verifique 'gcp_service_account' e 'gsheets_config'.")
+        st.error("Secrets não configurados.")
         return None
-        
     try:
         creds_json = st.secrets["gcp_service_account"]
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
         credentials = Credentials.from_service_account_info(creds_json, scopes=scopes)
         return gspread.authorize(credentials)
     except Exception as e:
-        st.session_state['gsheets_error'] = f"Erro de conexão com Google Sheets: {e}"
         return None
 
 gc = get_gsheets_client()
 
-
 @st.cache_data(ttl=5)
 def carregar_dados(sheet_name):
-    """Lê os dados da planilha Google."""
-    if gc is None:
-        if 'gsheets_error' in st.session_state:
-             st.error(st.session_state['gsheets_error'])
-        return pd.DataFrame(columns=COLUNAS_PADRAO)
-        
+    if gc is None: return pd.DataFrame(columns=COLUNAS_PADRAO)
     try:
         SPREADSHEET_URL = st.secrets["gsheets_config"]["spreadsheet_url"]
         sh = gc.open_by_url(SPREADSHEET_URL)
-        
         worksheet = sh.worksheet(sheet_name)
         data = worksheet.get_all_records()
-        
-        if not data:
-            df = pd.DataFrame(columns=COLUNAS_PADRAO)
-        else:
-            df = pd.DataFrame(data)
+        if not data: df = pd.DataFrame(columns=COLUNAS_PADRAO)
+        else: df = pd.DataFrame(data)
         
         if col_user_id not in df.columns:
-            if col_usuario in df.columns:
-                loc = df.columns.get_loc(col_usuario) + 1
-            else:
-                loc = 1 
+            if col_usuario in df.columns: loc = df.columns.get_loc(col_usuario) + 1
+            else: loc = 1 
             df.insert(loc, col_user_id, 'N/A')
-            
+        
         df = df.reindex(columns=COLUNAS_PADRAO, fill_value='0.0')
+        # CORREÇÃO CRÍTICA: Forçar String para evitar TypeError
+        df[col_usuario] = df[col_usuario].astype(str) 
         
-        # --- SEGURANÇA: Garantir que usuário seja String para evitar erro de sort ---
-        df[col_usuario] = df[col_usuario].astype(str)
-        
-        cols_to_convert = [col_sem, col_pontos_acum, col_pontos_sem, col_bonus_sem, col_mult_ind, col_pontos_final]
-        for col in cols_to_convert:
-            if col in df.columns:
-                df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
-            
+        cols_num = [col_sem, col_pontos_acum, col_pontos_sem, col_bonus_sem, col_mult_ind, col_pontos_final]
+        for col in cols_num:
+            if col in df.columns: df[col] = pd.to_numeric(df[col], errors='coerce').fillna(0)
         return df
-
     except Exception as e:
-        st.error(f"ERRO: A conexão com a aba '{sheet_name}' falhou. Verifique se a aba existe. ({e})")
+        st.error(f"Erro ao carregar: {e}")
         return pd.DataFrame(columns=COLUNAS_PADRAO)
 
-
 def salvar_dados(df, sheet_name):
-    """Sobrescreve a aba da planilha Google."""
-    if gc is None:
-        st.error("Não foi possível salvar os dados: Conexão Sheets inativa.")
-        return False
-
+    if gc is None: return False
     try:
         SPREADSHEET_URL = st.secrets["gsheets_config"]["spreadsheet_url"]
         sh = gc.open_by_url(SPREADSHEET_URL)
         worksheet = sh.worksheet(sheet_name)
-        
         df_to_save = df[COLUNAS_PADRAO].astype(str)
         data = [df_to_save.columns.values.tolist()] + df_to_save.values.tolist()
-        
         worksheet.clear()
         worksheet.update(range_name='A1', values=data)
-        
-        st.cache_data.clear() 
-        
+        st.cache_data.clear()
         return True
-        
     except Exception as e:
-        st.error("ERRO CRÍTICO: Falha na Escrita ou Permissão Negada (403)!")
-        st.exception(e)
+        st.error(f"Erro ao salvar: {e}")
         return False
 
-
 def calcular_pontuacao_semana(pontos_base, bonus, mult_ind):
-    pontos_final = (pontos_base + bonus) * mult_ind
-    return round(pontos_final, 1)
-
+    return round((pontos_base + bonus) * mult_ind, 1)
 
 def avaliar_situacao(cargo, semana_atual, pontos_acumulados):
     meta = METAS_PONTUACAO[cargo]
-    meta_up = meta['meta_up']
-    meta_manter = meta['meta_manter']
-    
-    if pontos_acumulados >= meta_up:
-        situacao = "UPADO"
-    elif pontos_acumulados >= meta_manter:
-        situacao = "MANTEVE"
-    else:
-        situacao = "REBAIXADO"
-        
-    return situacao, 0
-
+    if pontos_acumulados >= meta['meta_up']: return "UPADO", 0
+    elif pontos_acumulados >= meta['meta_manter']: return "MANTEVE", 0
+    else: return "REBAIXADO", 0
 
 def limpar_campos_interface():
-    keys_to_delete = ['mensagens_input', 'bonus_input']
-    for key in keys_to_delete:
-        if key in st.session_state:
-            del st.session_state[key]
+    for key in ['mensagens_input', 'bonus_input']:
+        if key in st.session_state: del st.session_state[key]
 
+# --- INTERFACE ---
+st.set_page_config(page_title="Death Note Ranking", layout="wide")
 
-# --- INTERFACE (STREAMLIT) ---
+# >>> APLICAR TEMA DEATH NOTE <<<
+configurar_estetica_death_note()
 
-st.set_page_config(page_title="Sistema de Pontuação Ranking", layout="wide")
-st.title("Sistema de Pontuação Ranking")
-st.markdown("##### Gerenciamento de UP baseado em Pontuação (Chat)")
+st.title("📓 Death Note Ranking")
+st.markdown("##### Gerenciamento de UP - *The Human whose name is written in this note shall be ranked...*")
 
 df = carregar_dados(SHEET_NAME_PRINCIPAL) 
 
-if 'salvar_button_clicked' not in st.session_state:
-    st.session_state.salvar_button_clicked = False
-if 'usuario_selecionado_id' not in st.session_state:
-    st.session_state.usuario_selecionado_id = '-- Selecione o Membro --'
+if 'salvar_button_clicked' not in st.session_state: st.session_state.salvar_button_clicked = False
+if 'usuario_selecionado_id' not in st.session_state: st.session_state.usuario_selecionado_id = '-- Selecione o Membro --'
 
 col_ferramentas, col_upar, col_ranking = st.columns([1, 1.2, 2])
 cargo_inicial_default = CARGOS_LISTA.index('f*ck') if CARGOS_LISTA else 0
 usuario_input_upar = None
 
-# =========================================================================
 # === COLUNA 1: FERRAMENTAS ===
-# =========================================================================
 with col_ferramentas:
-    st.subheader("Ferramentas de Gestão")
+    st.subheader("Ferramentas")
     
-    # 1. Adicionar Membro
+    # 1. ADICIONAR
     with st.container(border=True):
-        st.markdown("##### Adicionar Novo Membro")
-        usuario_input_add = st.text_input("Nome do Novo Usuário", key='usuario_input_add')
-        user_id_input_add = st.text_input("ID do Usuário (Opcional)", key='user_id_input_add', value='N/A')
+        st.markdown("##### ➕ Adicionar Membro")
+        usuario_input_add = st.text_input("Nome", key='usuario_input_add')
+        user_id_input_add = st.text_input("ID (Opcional)", key='user_id_input_add', value='N/A')
         cargo_input_add = st.selectbox("Cargo Inicial", CARGOS_LISTA, index=cargo_inicial_default, key='cargo_select_add')
         
-        if st.button("Adicionar Membro", type="primary", use_container_width=True):
+        if st.button("Escrever no Caderno", type="primary", use_container_width=True):
             if usuario_input_add:
-                # Verificação segura com string
                 if usuario_input_add in df[col_usuario].astype(str).values:
-                    st.error(f"O membro '{usuario_input_add}' já existe.")
+                    st.error(f"'{usuario_input_add}' já está registrado.")
                 else:
-                    novo_dado_add = {
-                        col_usuario: usuario_input_add, 
-                        col_user_id: user_id_input_add, 
-                        col_cargo: cargo_input_add, 
-                        col_sit: "Em andamento (1/1)",
-                        col_sem: 1,
-                        col_pontos_acum: 0.0, 
-                        col_pontos_sem: 0.0,
-                        col_bonus_sem: 0.0,
-                        col_mult_ind: 1.0,
-                        'Data_Ultima_Atualizacao': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-                        col_pontos_final: 0.0,
-                    }
-                    df = pd.concat([df, pd.DataFrame([novo_dado_add])], ignore_index=True)
+                    novo = {col_usuario: usuario_input_add, col_user_id: user_id_input_add, col_cargo: cargo_input_add, 
+                            col_sit: "Em andamento (1/1)", col_sem: 1, col_pontos_acum: 0.0, col_pontos_sem: 0.0, 
+                            col_bonus_sem: 0.0, col_mult_ind: 1.0, 'Data_Ultima_Atualizacao': datetime.now().strftime("%Y-%m-%d %H:%M:%S"), 
+                            col_pontos_final: 0.0}
+                    df = pd.concat([df, pd.DataFrame([novo])], ignore_index=True)
                     if salvar_dados(df, SHEET_NAME_PRINCIPAL):
                         st.session_state.usuario_selecionado_id = usuario_input_add 
-                        st.success(f"Membro **{usuario_input_add}** adicionado!")
+                        st.success(f"**{usuario_input_add}** adicionado.")
                         st.rerun()
-            else:
-                 st.error("Digite o nome do novo membro.")
-        
+            else: st.error("O nome é necessário.")
+    
     st.markdown("---")
 
-    # 2. Editar Nome de Usuário (CAIXA VISÍVEL)
+    # 2. EDITAR NOME (VISÍVEL)
     with st.container(border=True):
-        st.markdown("##### ✏️ Editar Nome de Usuário")
-        st.caption("Altera o nome mantendo pontos e cargo.")
+        st.markdown("##### ✏️ Editar Nome")
         
         if not df.empty:
-            # Lista ordenada com segurança de string
             lista_edit = sorted(df[col_usuario].dropna().astype(str).unique().tolist())
             usuario_para_editar = st.selectbox("Quem mudou de nome?", lista_edit, key='user_edit_select')
             novo_nome_input = st.text_input("Novo Nome", key='new_name_input')
             
-            if st.button("Salvar Novo Nome", use_container_width=True):
+            if st.button("Salvar Alteração", use_container_width=True):
                 if novo_nome_input:
                     if novo_nome_input in df[col_usuario].astype(str).values:
-                        st.error(f"Erro: O nome '{novo_nome_input}' já existe.")
+                        st.error("Erro: Nome já existe.")
                     else:
-                        # Encontra o índice e atualiza
                         idx = df[df[col_usuario].astype(str) == str(usuario_para_editar)].index[0]
                         df.at[idx, col_usuario] = novo_nome_input
-                        
                         if salvar_dados(df, SHEET_NAME_PRINCIPAL):
-                            # Se o usuário editado estava selecionado na aba Upar, atualiza a seleção
                             if st.session_state.usuario_selecionado_id == usuario_para_editar:
                                 st.session_state.usuario_selecionado_id = novo_nome_input
-                                
-                            st.success(f"Nome alterado: **{usuario_para_editar}** -> **{novo_nome_input}**")
+                            st.success(f"Renomeado: {usuario_para_editar} -> {novo_nome_input}")
                             st.rerun()
-                else:
-                    st.warning("Digite o novo nome.")
-        else:
-            st.warning("Tabela vazia.")
+                else: st.warning("Digite o novo nome.")
+        else: st.warning("Tabela vazia.")
 
     st.markdown("---")
-    
-    # 3. Remover / Reset
+
+    # 3. REMOVER
     with st.container(border=True):
-        st.markdown("##### Remoção / Reset")
-        if 'confirm_reset' not in st.session_state:
-            st.session_state.confirm_reset = False
+        st.markdown("##### 🗑️ Remover / Reset")
+        if 'confirm_reset' not in st.session_state: st.session_state.confirm_reset = False
         if not df.empty:
-            # Lista ordenada com segurança de string
             opcoes_remocao = sorted(df[col_usuario].dropna().astype(str).unique().tolist())
-            usuario_a_remover = st.selectbox("Selecione para Remover", ['-- Selecione --'] + opcoes_remocao, key='remove_user_select')
+            usuario_a_remover = st.selectbox("Eliminar Usuário", ['-- Selecione --'] + opcoes_remocao, key='remove_user_select')
             if usuario_a_remover != '-- Selecione --':
-                st.warning(f"Confirme a remoção de **{usuario_a_remover}**.")
-                if st.button(f"Confirmar Remoção", type="secondary", key='final_remove_button', use_container_width=True):
-                    # Filtro seguro
+                if st.button(f"Confirmar Eliminação de {usuario_a_remover}", type="secondary", key='final_remove_button', use_container_width=True):
                     df = df[df[col_usuario].astype(str) != str(usuario_a_remover)]
                     if salvar_dados(df, SHEET_NAME_PRINCIPAL):
                         st.session_state.usuario_selecionado_id = '-- Selecione o Membro --' 
-                        st.success("Membro removido!")
+                        st.success("Eliminado!")
                         st.rerun()
         st.markdown("---")
-        if st.button("Resetar Tabela INTEIRA"):
-            st.session_state.confirm_reset = True
+        if st.button("Resetar Tabela INTEIRA"): st.session_state.confirm_reset = True
         if st.session_state.confirm_reset:
-            st.error("Esta ação é IRREVERSÍVEL.")
+            st.error("Cuidado: Ação IRREVERSÍVEL.")
             if st.button("SIM, ZERAR TUDO", type="secondary", key='sim_reset', use_container_width=True):
-                df_reset = pd.DataFrame(columns=df.columns) 
-                if salvar_dados(df_reset, SHEET_NAME_PRINCIPAL):
-                    st.session_state.usuario_selecionado_id = '-- Selecione o Membro --' 
-                    st.success("Tabela zerada!")
+                if salvar_dados(pd.DataFrame(columns=df.columns), SHEET_NAME_PRINCIPAL):
+                    st.success("Mundo novo criado (Tabela zerada).")
                     st.session_state.confirm_reset = False
                     st.rerun()
 
-# =========================================================================
 # === COLUNA 2: UPAR ===
-# =========================================================================
 with col_upar:
-    st.subheader("Upar (Registro de Dados)")
+    st.subheader("Registro (Juízo Final)")
     
-    metas_data_pontos_simples = []
+    metas_data = []
     for idx, (cargo, metas) in enumerate(METAS_PONTUACAO.items()):
-        mensagens_up = metas['meta_up'] * MENSAGENS_POR_PONTO
-        dias_ciclo = 7 
-        metas_data_pontos_simples.append({
-            "Cargo (#)": f"{cargo} ({idx+1})",
-            "Meta UP (msgs)": f"{mensagens_up:,.0f}",
-            "Msgs/Dia (UP)": f"{mensagens_up / dias_ciclo:,.0f}",
-        })
-    df_metas_pontos_simples = pd.DataFrame(metas_data_pontos_simples)
-
-    with st.expander("Metas Diárias e Totais 📋", expanded=False):
-        st.dataframe(df_metas_pontos_simples, hide_index=True, use_container_width=True)
+        msgs = metas['meta_up'] * MENSAGENS_POR_PONTO
+        metas_data.append({"Cargo (#)": f"{cargo} ({idx+1})", "Meta UP (msgs)": f"{msgs:,.0f}", "Msgs/Dia": f"{msgs/7:,.0f}"})
+    with st.expander("Ver Metas 📋", expanded=False):
+        st.dataframe(pd.DataFrame(metas_data), hide_index=True, use_container_width=True)
     
     st.markdown("---")
     
     with st.container(border=True):
-        # Correção Sort e Astype para evitar o erro TypeError
+        # Correção Sort: Garantir string
         lista_opcoes = sorted(df[col_usuario].dropna().astype(str).unique().tolist())
         opcoes_usuarios = ['-- Selecione o Membro --'] + lista_opcoes
+        try: def_idx = opcoes_usuarios.index(str(st.session_state.usuario_selecionado_id))
+        except: def_idx = 0
         
-        try:
-            default_index = opcoes_usuarios.index(str(st.session_state.usuario_selecionado_id))
-        except ValueError:
-            default_index = 0
-            
-        usuario_selecionado = st.selectbox(
-            "Selecione o Membro", 
-            opcoes_usuarios, 
-            index=default_index,
-            key='select_user_update',
-            on_change=lambda: st.session_state.__setitem__('usuario_selecionado_id', st.session_state.select_user_update)
-        )
+        usuario_selecionado = st.selectbox("Selecione o Membro", opcoes_usuarios, index=def_idx, key='select_user_update', on_change=lambda: st.session_state.__setitem__('usuario_selecionado_id', st.session_state.select_user_update))
         st.session_state.usuario_selecionado_id = usuario_selecionado
 
         if usuario_selecionado != '-- Selecione o Membro --' and not df.empty and usuario_selecionado in df[col_usuario].astype(str).values:
-            
-            # Filtro seguro com String
-            dados_atuais = df[df[col_usuario].astype(str) == str(usuario_selecionado)].iloc[0]
-            
-            usuario_input_upar = dados_atuais[col_usuario]
-            user_id_atual = dados_atuais.get(col_user_id, 'N/A')
-            cargo_atual_dados = dados_atuais[col_cargo] 
-            pontos_acumulados_anteriores = dados_atuais[col_pontos_acum]
-            mult_ind_anterior = dados_atuais[col_mult_ind]
+            dados = df[df[col_usuario].astype(str) == str(usuario_selecionado)].iloc[0]
+            usuario_input_upar = dados[col_usuario]
             
             with st.container():
-                if cargo_atual_dados in METAS_PONTUACAO:
-                    cargo_index_default = CARGOS_LISTA.index(cargo_atual_dados)
-                    st.markdown(f"**Membro Selecionado:** `{usuario_input_upar}`") 
-                    st.markdown(f"""<div style="margin-bottom: 5px;"><strong>ID do Usuário:</strong> <span style="color: #198754; font-weight: bold;">{user_id_atual}</span></div>""", unsafe_allow_html=True)
-                    cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=cargo_index_default, key='cargo_select_update')
+                if dados[col_cargo] in METAS_PONTUACAO:
+                    st.markdown(f"**Membro:** `{usuario_input_upar}`") 
+                    # ID EM VERDE (DEATH NOTE: Cores de L/Computador)
+                    st.markdown(f"""<div style="margin-bottom: 5px;"><strong>ID:</strong> <span style="color: #32CD32; font-family: 'Courier New'; font-weight: bold;">{dados.get(col_user_id, 'N/A')}</span></div>""", unsafe_allow_html=True)
                     
-                    if dados_atuais[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]:
-                        st.info(f"Ciclo finalizado ({dados_atuais[col_sit]}). Registre a **Semana 1** do cargo atual (**{cargo_input}**).")
-                    else:
-                        st.info("Ciclo semanal. Registre sempre a Semana 1.")
+                    c_idx = CARGOS_LISTA.index(dados[col_cargo])
+                    cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=c_idx, key='cargo_select_update')
+                    
+                    if dados[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]: st.info(f"Ciclo finalizado.")
+                    else: st.info("Ciclo semanal.")
 
                     st.markdown("---")
-                    col_met_pessoal1, col_met_pessoal2, col_met_pessoal3 = st.columns(3)
-                    with col_met_pessoal1:
-                        st.metric("Pontos Acumulados", f"{pontos_acumulados_anteriores:.1f}")
-                    with col_met_pessoal2:
-                        st.metric("Última Pontuação Semanal", f"{dados_atuais[col_pontos_sem]:.1f}")
-                    with col_met_pessoal3:
-                        st.metric("Multiplicador Atual", f"{mult_ind_anterior:.1f}x")
+                    c1, c2, c3 = st.columns(3)
+                    with c1: st.metric("Acumulado", f"{dados[col_pontos_acum]:.1f}")
+                    with c2: st.metric("Semana", f"{dados[col_pontos_sem]:.1f}")
+                    with c3: st.metric("Mult.", f"{dados[col_mult_ind]:.1f}x")
                     st.markdown("---")
-                    semana_input = st.number_input("Semana do Ciclo (1/1)", min_value=1, max_value=1, value=1, key='semana_input_update')
+                    semana_input = st.number_input("Semana (1/1)", min_value=1, max_value=1, value=1, key='semana_input_update')
                 else:
-                    st.error(f"Cargo '{cargo_atual_dados}' desconhecido. Revertendo para 'f*ck'.")
-                    cargo_index_default = CARGOS_LISTA.index('f*ck')
-                    cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=cargo_index_default, key='cargo_select_update_err')
-                    semana_input = st.number_input("Semana do Ciclo", min_value=1, value=1, key='semana_input_update_err')
-            
+                    st.error("Cargo desconhecido.")
+                    cargo_input = st.selectbox("Cargo", CARGOS_LISTA, index=0, key='cargo_select_update')
+
             st.divider()
-            st.markdown("##### Dados para o Registro Semanal")
-            col_pts1, col_pts2 = st.columns(2)
-            with col_pts1:
-                mensagens_input = st.number_input("Mensagens Enviadas (Chat)", min_value=0, value=int(st.session_state.get('mensagens_input', 0)), step=10, key='mensagens_input', format="%d")
-            with col_pts2:
-                bonus_input = st.number_input("Bônus Extras (Pts)", min_value=0.0, value=st.session_state.get('bonus_input', 0.0), step=1.0, key='bonus_input')
-            mult_ind_input = st.number_input(f"Multiplicador Individual (Atual: {mult_ind_anterior:.1f}x)", min_value=0.1, value=float(mult_ind_anterior), step=0.1, key='mult_ind_input')
+            st.markdown("##### Dados Semanais")
+            cp1, cp2 = st.columns(2)
+            with cp1: msgs_in = st.number_input("Mensagens", min_value=0, value=int(st.session_state.get('mensagens_input', 0)), step=10, key='mensagens_input')
+            with cp2: bonus_in = st.number_input("Bônus (Pts)", min_value=0.0, value=st.session_state.get('bonus_input', 0.0), step=1.0, key='bonus_input')
+            mult_in = st.number_input("Multiplicador", min_value=0.1, value=float(dados[col_mult_ind]), step=0.1, key='mult_ind_input')
 
             st.markdown("---")
-            if st.button("Salvar / Processar Semana", type="primary", key="save_update_button", use_container_width=True):
+            if st.button("Processar Julgamento", type="primary", key="save_update_button", use_container_width=True):
                 st.session_state.salvar_button_clicked = True
         else:
-            st.info("Selecione um membro acima.")
+            st.info("Selecione um membro.")
             usuario_input_upar = None
             
-    if st.session_state.salvar_button_clicked and usuario_input_upar is not None:
+    if st.session_state.salvar_button_clicked and usuario_input_upar:
         st.session_state.salvar_button_clicked = False
-        df_reloaded = carregar_dados(SHEET_NAME_PRINCIPAL)
+        df = carregar_dados(SHEET_NAME_PRINCIPAL)
+        # Filtro Seguro
+        dados = df[df[col_usuario].astype(str) == str(usuario_input_upar)].iloc[0]
         
-        # Filtro Seguro com String
-        dados_atuais = df_reloaded[df_reloaded[col_usuario].astype(str) == str(st.session_state.select_user_update)].iloc[0]
+        pts_base = st.session_state.mensagens_input / 50.0
+        pts_semana = calcular_pontuacao_semana(pts_base, st.session_state.bonus_input, st.session_state.mult_ind_input)
         
-        mensagens_input = st.session_state.mensagens_input
-        user_id_salvar = dados_atuais.get(col_user_id, 'N/A')
-        pontos_base_input = mensagens_input / float(MENSAGENS_POR_PONTO)
-        bonus_input = st.session_state.bonus_input
-        mult_ind_input = st.session_state.mult_ind_input
-        cargo_input = st.session_state.cargo_select_update 
+        situacao, _ = avaliar_situacao(st.session_state.cargo_select_update, 1, pts_semana)
         
-        pontos_total_final_anterior = dados_atuais[col_pontos_final]
-        pontos_semana_calc = calcular_pontuacao_semana(pontos_base_input, bonus_input, mult_ind_input)
-        
-        # Reset de pontos a cada semana (Ciclo 1)
-        pontos_acumulados_total = pontos_semana_calc 
-        
-        situacao_final, _ = avaliar_situacao(cargo_input, 1, pontos_acumulados_total)
-        
-        novo_cargo_para_tabela = cargo_input 
-        
-        if situacao_final in ["UPADO", "REBAIXADO", "MANTEVE"]:
-            if situacao_final == "UPADO":
-                try:
-                    indice_atual = CARGOS_LISTA.index(cargo_input)
-                    if indice_atual < len(CARGOS_LISTA) - 1:
-                        novo_cargo_para_tabela = CARGOS_LISTA[indice_atual + 1]
-                    else:
-                        novo_cargo_para_tabela = CARGOS_LISTA[-1]
-                except ValueError: pass 
-            elif situacao_final == "REBAIXADO":
-                try:
-                    indice_atual = CARGOS_LISTA.index(cargo_input)
-                    if indice_atual > 0:
-                        novo_cargo_para_tabela = CARGOS_LISTA[indice_atual - 1]
-                    else:
-                        novo_cargo_para_tabela = 'f*ck'
-                except ValueError: pass
+        novo_cargo = st.session_state.cargo_select_update
+        if situacao == "UPADO":
+            try: 
+                idx_c = CARGOS_LISTA.index(novo_cargo)
+                if idx_c < len(CARGOS_LISTA)-1: novo_cargo = CARGOS_LISTA[idx_c+1]
+            except: pass
+        elif situacao == "REBAIXADO":
+            try: 
+                idx_c = CARGOS_LISTA.index(novo_cargo)
+                if idx_c > 0: novo_cargo = CARGOS_LISTA[idx_c-1]
+                else: novo_cargo = 'f*ck'
+            except: pass
             
-        novo_dado = {
-            col_usuario: usuario_input_upar, 
-            col_user_id: user_id_salvar,
-            col_cargo: novo_cargo_para_tabela, 
-            col_sit: situacao_final, 
-            col_sem: 1, 
-            col_pontos_acum: 0.0, # Zera para a próxima
-            col_pontos_sem: round(pontos_semana_calc, 1),
-            col_bonus_sem: round(bonus_input, 1),
-            col_mult_ind: round(mult_ind_input, 1),
-            'Data_Ultima_Atualizacao': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
-            col_pontos_final: round(pontos_total_final_anterior + pontos_semana_calc, 1), 
+        novo_reg = {
+            col_usuario: usuario_input_upar, col_user_id: dados.get(col_user_id, 'N/A'), col_cargo: novo_cargo, col_sit: situacao,
+            col_sem: 1, col_pontos_acum: 0.0, col_pontos_sem: round(pts_semana, 1), col_bonus_sem: round(st.session_state.bonus_input, 1),
+            col_mult_ind: round(st.session_state.mult_ind_input, 1), 'Data_Ultima_Atualizacao': datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            col_pontos_final: round(dados[col_pontos_final] + pts_semana, 1)
         }
         
-        # Update Seguro com Index e String
-        idx_to_update = df[df[col_usuario].astype(str) == str(usuario_input_upar)].index[0]
-        df.loc[idx_to_update] = novo_dado
-        
+        df.loc[df[df[col_usuario].astype(str) == str(usuario_input_upar)].index[0]] = novo_reg
         if salvar_dados(df, SHEET_NAME_PRINCIPAL):
-            limpar_campos_interface() 
-            st.session_state.usuario_selecionado_id = usuario_input_upar 
-            msg_avanco = f" (Novo Cargo: **{novo_cargo_para_tabela}**)" if situacao_final != "MANTEVE" else ""
-            st.success(f"Dados salvos! Situação: **{situacao_final}**{msg_avanco}")
+            limpar_campos_interface()
+            st.session_state.usuario_selecionado_id = usuario_input_upar
+            st.success(f"Sentença: {situacao}. Cargo: {novo_cargo}")
             st.rerun()
-    elif st.session_state.salvar_button_clicked:
-         st.session_state.salvar_button_clicked = False
-         st.error("Selecione um membro válido.")
 
-# =========================================================================
 # === COLUNA 3: RANKING ===
-# =========================================================================
 with col_ranking:
-    st.subheader("Tabela de Acompanhamento e Ranking")
-    st.info(f"Total de Membros Registrados: **{len(df)}**")
-    if not df.empty: 
-        df_display = df.copy()
-        cargo_order = {cargo: i for i, cargo in enumerate(CARGOS_LISTA)}
-        df_display['cargo_rank'] = df_display[col_cargo].map(cargo_order)
-        df_display = df_display.sort_values(by=[col_pontos_final, 'cargo_rank'], ascending=[False, False])
-                                        
-        st.dataframe(
-            df_display.style.map(
-                lambda x: 'background-color: #e6ffed; color: green' if 'UPADO' in str(x) else 
-                          ('background-color: #ffe6e6; color: red' if 'REBAIXADO' in str(x) else 
-                           ('background-color: #fffac2; color: #8a6d3b' if 'MANTEVE' in str(x) else '')),
-                subset=[col_sit]
-            ).format(precision=1),
-            use_container_width=True,
-            height=600,
-            column_order=[col_usuario, col_user_id, col_cargo, col_sit, col_pontos_acum, col_pontos_sem, col_bonus_sem, col_mult_ind, 'Data_Ultima_Atualizacao']
-        )
-    else:
-        st.warning("Nenhum membro cadastrado.")
-    st.divider()
+    st.subheader("Ranking")
+    st.info(f"Membros: **{len(df)}**")
     if not df.empty:
-        st.subheader("Métricas Agregadas")
-        total_pontos_sem = df[col_pontos_sem].sum()
-        total_bonus_sem = df[col_bonus_sem].sum() 
-        col_met1, col_met2 = st.columns(2)
-        with col_met1: st.metric("Total Pontos (Última Rodada)", f"{total_pontos_sem:.1f}")
-        with col_met2: st.metric("Total Bônus (Última Rodada)", f"{total_bonus_sem:.1f}")
+        df_d = df.copy()
+        c_ord = {c: i for i, c in enumerate(CARGOS_LISTA)}
+        df_d['rank'] = df_d[col_cargo].map(c_ord)
+        df_d = df_d.sort_values(by=[col_pontos_final, 'rank'], ascending=[False, False])
+        
+        # Cores customizadas no estilo Dark/Death Note
+        st.dataframe(df_d.style.map(lambda x: 'background-color:rgba(50,205,50,0.2);color:lightgreen' if 'UPADO' in str(x) else ('background-color:rgba(139,0,0,0.4);color:red' if 'REBAIXADO' in str(x) else ('background-color:rgba(218,165,32,0.2);color:gold' if 'MANTEVE' in str(x) else '')), subset=[col_sit]).format(precision=1), use_container_width=True, height=600, column_order=[col_usuario, col_user_id, col_cargo, col_sit, col_pontos_acum, col_pontos_sem, 'Data_Ultima_Atualizacao'])
+    else: st.warning("Sem dados.")
