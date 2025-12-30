@@ -6,8 +6,8 @@ from google.oauth2.service_account import Credentials
 
 # --- CONFIGURAÇÃO DAS REGRAS DO SISTEMA (PONTUAÇÃO E CICLOS) ---
 
-# NOVO MAPA DE PONTUAÇÃO - METAS BALANCEADAS (Ciclo 1 Semana)
-# Conversão: 1 Ponto = 50 Mensagens
+# NOVO MAPA DE PONTUAÇÃO - VERSÃO "REALISTA" (Aprovada antes das dificuldades extras)
+# Conversão: 1 Ponto = 50 Mensagens | Ciclo: 1 Semana
 METAS_PONTUACAO = {
     # Posições 1 a 4 (Base)
     'f*ck':      {'ciclo': 1, 'meta_up': 10, 'meta_manter': 7},       # 500 / 350 msgs
@@ -15,7 +15,7 @@ METAS_PONTUACAO = {
     'woo':       {'ciclo': 1, 'meta_up': 25, 'meta_manter': 20},      # 1.250 / 1.000 msgs
     'sex':       {'ciclo': 1, 'meta_up': 35, 'meta_manter': 28},      # 1.750 / 1.400 msgs
     
-    # Posições 5 a 7 (Intermediários)
+    # Posições 5 a 7 (Intermediários - Curva Suave)
     'note':      {'ciclo': 1, 'meta_up': 45, 'meta_manter': 36},      # 2.250 / 1.800 msgs
     'aura':      {'ciclo': 1, 'meta_up': 55, 'meta_manter': 44},      # 2.750 / 2.200 msgs
     'all wild':  {'ciclo': 1, 'meta_up': 66, 'meta_manter': 53},      # 3.300 / 2.650 msgs
@@ -25,7 +25,7 @@ METAS_PONTUACAO = {
     'mello':     {'ciclo': 1, 'meta_up': 92, 'meta_manter': 74},      # 4.600 / 3.700 msgs
     'void':      {'ciclo': 1, 'meta_up': 106, 'meta_manter': 85},     # 5.300 / 4.250 msgs
     
-    # Posições 11 a 13 (Elite)
+    # Posições 11 a 13 (Elite - Desafiador mas possível)
     'dawn':      {'ciclo': 1, 'meta_up': 122, 'meta_manter': 98},     # 6.100 / 4.900 msgs
     'upper':     {'ciclo': 1, 'meta_up': 140, 'meta_manter': 112},    # 7.000 / 5.600 msgs
     'Light':     {'ciclo': 1, 'meta_up': 160, 'meta_manter': 128},    # 8.000 / 6.400 msgs
@@ -70,6 +70,10 @@ col_pontos_final = 'Pontos_Total_Final'
 @st.cache_resource(ttl=3600)
 def get_gsheets_client():
     """Autoriza o cliente gspread."""
+    if "gcp_service_account" not in st.secrets or "gsheets_config" not in st.secrets:
+        st.error("Configuração de secrets ausente. Verifique 'gcp_service_account' e 'gsheets_config'.")
+        return None
+        
     try:
         creds_json = st.secrets["gcp_service_account"]
         scopes = ["https://www.googleapis.com/auth/spreadsheets", "https://www.googleapis.com/auth/drive"]
@@ -110,6 +114,9 @@ def carregar_dados(sheet_name):
             df.insert(loc, col_user_id, 'N/A')
             
         df = df.reindex(columns=COLUNAS_PADRAO, fill_value='0.0')
+        
+        # --- SEGURANÇA: Garantir que usuário seja String ---
+        df[col_usuario] = df[col_usuario].astype(str)
         
         cols_to_convert = [col_sem, col_pontos_acum, col_pontos_sem, col_bonus_sem, col_mult_ind, col_pontos_final]
         for col in cols_to_convert:
@@ -194,9 +201,13 @@ col_ferramentas, col_upar, col_ranking = st.columns([1, 1.2, 2])
 cargo_inicial_default = CARGOS_LISTA.index('f*ck') if CARGOS_LISTA else 0
 usuario_input_upar = None
 
+# =========================================================================
 # === COLUNA 1: FERRAMENTAS ===
+# =========================================================================
 with col_ferramentas:
     st.subheader("Ferramentas de Gestão")
+    
+    # 1. Adicionar Membro
     with st.container(border=True):
         st.markdown("##### Adicionar Novo Membro")
         usuario_input_add = st.text_input("Nome do Novo Usuário", key='usuario_input_add')
@@ -205,7 +216,8 @@ with col_ferramentas:
         
         if st.button("Adicionar Membro", type="primary", use_container_width=True):
             if usuario_input_add:
-                if usuario_input_add in df[col_usuario].values:
+                # Verificação segura com string
+                if usuario_input_add in df[col_usuario].astype(str).values:
                     st.error(f"O membro '{usuario_input_add}' já existe.")
                 else:
                     novo_dado_add = {
@@ -230,18 +242,54 @@ with col_ferramentas:
                  st.error("Digite o nome do novo membro.")
         
     st.markdown("---")
+
+    # 2. Editar Nome de Usuário
+    with st.expander("✏️ Editar Nome de Usuário", expanded=False):
+        st.info("Altera o nome mantendo todos os pontos e cargo.")
+        
+        if not df.empty:
+            # Lista ordenada com segurança de string
+            lista_edit = sorted(df[col_usuario].dropna().astype(str).unique().tolist())
+            usuario_para_editar = st.selectbox("Selecione quem mudou de nome", lista_edit, key='user_edit_select')
+            novo_nome_input = st.text_input("Novo Nome (Ex: UsuarioV2)", key='new_name_input')
+            
+            if st.button("Salvar Novo Nome", use_container_width=True):
+                if novo_nome_input:
+                    if novo_nome_input in df[col_usuario].astype(str).values:
+                        st.error(f"Erro: O nome '{novo_nome_input}' já está sendo usado por outro membro.")
+                    else:
+                        # Encontra o índice e atualiza
+                        idx = df[df[col_usuario].astype(str) == str(usuario_para_editar)].index[0]
+                        df.at[idx, col_usuario] = novo_nome_input
+                        
+                        if salvar_dados(df, SHEET_NAME_PRINCIPAL):
+                            # Se o usuário editado estava selecionado na aba Upar, atualiza a seleção
+                            if st.session_state.usuario_selecionado_id == usuario_para_editar:
+                                st.session_state.usuario_selecionado_id = novo_nome_input
+                                
+                            st.success(f"Nome alterado de **{usuario_para_editar}** para **{novo_nome_input}** com sucesso!")
+                            st.rerun()
+                else:
+                    st.warning("Digite o novo nome.")
+        else:
+            st.warning("Tabela vazia.")
+
+    st.markdown("---")
     
+    # 3. Remover / Reset
     with st.container(border=True):
-        st.markdown("##### Remoção / Reset de Tabela")
+        st.markdown("##### Remoção / Reset")
         if 'confirm_reset' not in st.session_state:
             st.session_state.confirm_reset = False
         if not df.empty:
-            opcoes_remocao = sorted(df[col_usuario].unique().tolist())
+            # Lista ordenada com segurança de string
+            opcoes_remocao = sorted(df[col_usuario].dropna().astype(str).unique().tolist())
             usuario_a_remover = st.selectbox("Selecione o Usuário para Remover", ['-- Selecione --'] + opcoes_remocao, key='remove_user_select')
             if usuario_a_remover != '-- Selecione --':
                 st.warning(f"Confirme a remoção de **{usuario_a_remover}**. Permanente.")
                 if st.button(f"Confirmar Remoção de {usuario_a_remover}", type="secondary", key='final_remove_button', use_container_width=True):
-                    df = df[df[col_usuario] != usuario_a_remover]
+                    # Filtro seguro
+                    df = df[df[col_usuario].astype(str) != str(usuario_a_remover)]
                     if salvar_dados(df, SHEET_NAME_PRINCIPAL):
                         st.session_state.usuario_selecionado_id = '-- Selecione o Membro --' 
                         st.success(f"Membro {usuario_a_remover} removido com sucesso!")
@@ -259,7 +307,9 @@ with col_ferramentas:
                     st.session_state.confirm_reset = False
                     st.rerun()
 
+# =========================================================================
 # === COLUNA 2: UPAR ===
+# =========================================================================
 with col_upar:
     st.subheader("Upar (Registro de Dados)")
     
@@ -280,9 +330,12 @@ with col_upar:
     st.markdown("---")
     
     with st.container(border=True):
-        opcoes_usuarios = ['-- Selecione o Membro --'] + sorted(df[col_usuario].unique().tolist()) 
+        # Correção Sort e Astype para evitar o erro TypeError
+        lista_opcoes = sorted(df[col_usuario].dropna().astype(str).unique().tolist())
+        opcoes_usuarios = ['-- Selecione o Membro --'] + lista_opcoes
+        
         try:
-            default_index = opcoes_usuarios.index(st.session_state.usuario_selecionado_id)
+            default_index = opcoes_usuarios.index(str(st.session_state.usuario_selecionado_id))
         except ValueError:
             default_index = 0
             
@@ -295,8 +348,11 @@ with col_upar:
         )
         st.session_state.usuario_selecionado_id = usuario_selecionado
 
-        if usuario_selecionado != '-- Selecione o Membro --' and not df.empty and usuario_selecionado in df[col_usuario].values:
-            dados_atuais = df[df[col_usuario] == usuario_selecionado].iloc[0]
+        if usuario_selecionado != '-- Selecione o Membro --' and not df.empty and usuario_selecionado in df[col_usuario].astype(str).values:
+            
+            # Filtro seguro com String
+            dados_atuais = df[df[col_usuario].astype(str) == str(usuario_selecionado)].iloc[0]
+            
             usuario_input_upar = dados_atuais[col_usuario]
             user_id_atual = dados_atuais.get(col_user_id, 'N/A')
             cargo_atual_dados = dados_atuais[col_cargo] 
@@ -350,7 +406,9 @@ with col_upar:
     if st.session_state.salvar_button_clicked and usuario_input_upar is not None:
         st.session_state.salvar_button_clicked = False
         df_reloaded = carregar_dados(SHEET_NAME_PRINCIPAL)
-        dados_atuais = df_reloaded[df_reloaded[col_usuario] == st.session_state.select_user_update].iloc[0]
+        
+        # Filtro Seguro com String
+        dados_atuais = df_reloaded[df_reloaded[col_usuario].astype(str) == str(st.session_state.select_user_update)].iloc[0]
         
         mensagens_input = st.session_state.mensagens_input
         user_id_salvar = dados_atuais.get(col_user_id, 'N/A')
@@ -401,7 +459,10 @@ with col_upar:
             col_pontos_final: round(pontos_total_final_anterior + pontos_semana_calc, 1), 
         }
         
-        df.loc[df[df[col_usuario] == usuario_input_upar].index[0]] = novo_dado
+        # Update Seguro com Index e String
+        idx_to_update = df[df[col_usuario].astype(str) == str(usuario_input_upar)].index[0]
+        df.loc[idx_to_update] = novo_dado
+        
         if salvar_dados(df, SHEET_NAME_PRINCIPAL):
             limpar_campos_interface() 
             st.session_state.usuario_selecionado_id = usuario_input_upar 
@@ -412,7 +473,9 @@ with col_upar:
          st.session_state.salvar_button_clicked = False
          st.error("Selecione um membro válido.")
 
+# =========================================================================
 # === COLUNA 3: RANKING ===
+# =========================================================================
 with col_ranking:
     st.subheader("Tabela de Acompanhamento e Ranking")
     st.info(f"Total de Membros Registrados: **{len(df)}**")
