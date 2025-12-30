@@ -5,15 +5,15 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # ==============================================================================
-# --- CONFIGURAÇÃO DE ESTÉTICA (DEATH NOTE THEME) 📓🍎 ---
+# --- CONFIGURAÇÃO DE ESTÉTICA (SÓLIDA E DARK) 📓 ---
 # ==============================================================================
-def configurar_estetica_death_note():
-    # URL da Imagem (Ryuk)
-    background_url = "https://images2.alphacoders.com/153/thumb-1920-153252.jpg"
+def configurar_estetica_visual():
+    # Nova Imagem solicitada
+    background_url = "https://images4.alphacoders.com/153/thumb-1920-153254.jpg"
 
     st.markdown(f"""
     <style>
-        /* Importar a Fonte Gótica (UnifrakturMaguntia) */
+        /* Importar a Fonte Gótica */
         @import url('https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&display=swap');
 
         /* === FUNDO DA PÁGINA === */
@@ -25,75 +25,82 @@ def configurar_estetica_death_note():
             background-attachment: fixed;
         }}
         
-        /* Camada escura (Overlay) para legibilidade */
-        [data-testid="stAppViewContainer"]::before {{
-            content: "";
-            position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            background-color: rgba(0, 0, 0, 0.85); /* 85% Escuro */
-            z-index: -1;
+        /* === CAIXAS DE CONTEÚDO (BORDAS/CONTAINERS) === */
+        /* Tornar o fundo PRETO SÓLIDO para garantir leitura */
+        div[data-testid="stVerticalBlockBorderWrapper"] {{
+            background-color: #000000 !important; /* Preto Sólido */
+            border: 1px solid #444 !important; /* Borda Cinza Discreta */
+            border-radius: 8px;
+            padding: 15px;
         }}
 
         /* === TÍTULOS (H1-H6) === */
-        h1, h2, h3, h4, h5, h6 {{
-            color: #e0e0e0 !important;
+        h1, h2, h3, h4, h5, h6, .stMarkdown h5 {{
+            color: #ffffff !important; /* Texto Branco para ler no fundo preto */
             font-family: 'UnifrakturMaguntia', cursive !important;
             font-weight: 400;
-            letter-spacing: 2px;
-            text-shadow: 3px 3px 5px #000000;
+            letter-spacing: 1.5px;
+            text-shadow: 2px 2px 0px #880000; /* Sombra Vermelha */
         }}
         
-        /* === CORPO DO TEXTO (Estilo Investigação) === */
-        p, div, label, span, caption {{
-            color: #cccccc !important;
+        /* === CORPO DO TEXTO E LABELS === */
+        p, div, label, span, li {{
+            color: #dddddd !important; /* Cinza claro quase branco */
             font-family: 'Courier New', monospace !important; 
+            font-weight: bold;
         }}
 
-        /* === INPUTS E CAIXAS DE SELEÇÃO === */
-        .stTextInput input, .stNumberInput input, .stSelectbox div[data-baseweb="select"] {{
-            background-color: #0a0a0a !important; 
+        /* === INPUTS (CAIXAS DE DIGITAÇÃO) === */
+        .stTextInput input, .stNumberInput input {{
+            background-color: #1a1a1a !important; /* Cinza muito escuro */
             color: #ffffff !important;
-            border: 1px solid #444 !important;
-            font-family: 'Courier New', monospace !important;
+            border: 1px solid #ffffff !important; /* Borda Branca para destacar */
         }}
         
-        /* === BOTÃO PRINCIPAL (VERMELHO SANGUE) === */
+        /* === SELETORES (DROPDOWNS) === */
+        div[data-baseweb="select"] > div {{
+            background-color: #1a1a1a !important;
+            color: #ffffff !important;
+            border: 1px solid #ffffff !important;
+        }}
+        
+        /* === BOTÃO PRINCIPAL === */
         div.stButton > button:first-child {{
-            background-color: #880808 !important; 
-            color: white !important;
-            border: 1px solid #440000 !important;
+            background-color: #000000 !important; 
+            color: #ff0000 !important; /* Texto Vermelho */
+            border: 2px solid #ff0000 !important;
             font-family: 'UnifrakturMaguntia', cursive !important;
-            font-size: 18px !important;
+            font-size: 20px !important;
             transition: 0.3s;
         }}
         
         div.stButton > button:first-child:hover {{
             background-color: #ff0000 !important;
+            color: #000000 !important;
             box-shadow: 0 0 15px #ff0000;
-            border-color: #fff !important;
         }}
         
         /* === TABELAS (DATAFRAME) === */
         div[data-testid="stDataFrame"] {{
-            background-color: rgba(0, 0, 0, 0.7);
-            border: 1px solid #333;
-            border-radius: 5px;
+            background-color: #000000 !important; /* Fundo Preto Sólido */
+            border: 1px solid #ffffff;
+        }}
+        div[data-testid="stDataFrame"] div {{
+            color: #ffffff !important; /* Letras da tabela em Branco */
+            font-family: 'Courier New', monospace !important;
         }}
 
         /* === METRICAS === */
         [data-testid="stMetricValue"] {{
-            color: #ff3333 !important; /* Vermelho */
+            color: #ff0000 !important; /* Vermelho Sangue */
             font-family: 'UnifrakturMaguntia', cursive !important;
         }}
         
-        /* === ALERTAS === */
+        /* === ALERTAS E NOTIFICAÇÕES === */
         .stAlert {{
-            background-color: #111 !important;
-            color: #eee !important;
-            border: 1px solid #333;
+            background-color: #000000 !important;
+            color: #ffffff !important;
+            border: 1px solid #ff0000;
         }}
         
     </style>
@@ -179,7 +186,7 @@ def carregar_dados(sheet_name):
             df.insert(loc, col_user_id, 'N/A')
         
         df = df.reindex(columns=COLUNAS_PADRAO, fill_value='0.0')
-        # CORREÇÃO CRÍTICA: Forçar String para evitar TypeError
+        # Correção Sort/Type
         df[col_usuario] = df[col_usuario].astype(str) 
         
         cols_num = [col_sem, col_pontos_acum, col_pontos_sem, col_bonus_sem, col_mult_ind, col_pontos_final]
@@ -220,13 +227,14 @@ def limpar_campos_interface():
         if key in st.session_state: del st.session_state[key]
 
 # --- INTERFACE ---
-st.set_page_config(page_title="Death Note Ranking", layout="wide")
+st.set_page_config(page_title="Sistema de Ups", layout="wide")
 
-# >>> APLICAR TEMA DEATH NOTE <<<
-configurar_estetica_death_note()
+# >>> APLICAR TEMA SÓLIDO/DARK <<<
+configurar_estetica_visual()
 
-st.title("📓 Death Note Ranking")
-st.markdown("##### Gerenciamento de UP - *The Human whose name is written in this note shall be ranked...*")
+# TÍTULO REVERTIDO
+st.title("Sistema de Ups")
+st.markdown("##### Painel de Gerenciamento")
 
 df = carregar_dados(SHEET_NAME_PRINCIPAL) 
 
@@ -248,7 +256,7 @@ with col_ferramentas:
         user_id_input_add = st.text_input("ID (Opcional)", key='user_id_input_add', value='N/A')
         cargo_input_add = st.selectbox("Cargo Inicial", CARGOS_LISTA, index=cargo_inicial_default, key='cargo_select_add')
         
-        if st.button("Escrever no Caderno", type="primary", use_container_width=True):
+        if st.button("Adicionar ao Sistema", type="primary", use_container_width=True):
             if usuario_input_add:
                 if usuario_input_add in df[col_usuario].astype(str).values:
                     st.error(f"'{usuario_input_add}' já está registrado.")
@@ -266,7 +274,7 @@ with col_ferramentas:
     
     st.markdown("---")
 
-    # 2. EDITAR NOME (VISÍVEL)
+    # 2. EDITAR NOME
     with st.container(border=True):
         st.markdown("##### ✏️ Editar Nome")
         
@@ -298,13 +306,13 @@ with col_ferramentas:
         if 'confirm_reset' not in st.session_state: st.session_state.confirm_reset = False
         if not df.empty:
             opcoes_remocao = sorted(df[col_usuario].dropna().astype(str).unique().tolist())
-            usuario_a_remover = st.selectbox("Eliminar Usuário", ['-- Selecione --'] + opcoes_remocao, key='remove_user_select')
+            usuario_a_remover = st.selectbox("Remover Usuário", ['-- Selecione --'] + opcoes_remocao, key='remove_user_select')
             if usuario_a_remover != '-- Selecione --':
-                if st.button(f"Confirmar Eliminação de {usuario_a_remover}", type="secondary", key='final_remove_button', use_container_width=True):
+                if st.button(f"Confirmar Remoção de {usuario_a_remover}", type="secondary", key='final_remove_button', use_container_width=True):
                     df = df[df[col_usuario].astype(str) != str(usuario_a_remover)]
                     if salvar_dados(df, SHEET_NAME_PRINCIPAL):
                         st.session_state.usuario_selecionado_id = '-- Selecione o Membro --' 
-                        st.success("Eliminado!")
+                        st.success("Removido!")
                         st.rerun()
         st.markdown("---")
         if st.button("Resetar Tabela INTEIRA"): st.session_state.confirm_reset = True
@@ -312,25 +320,24 @@ with col_ferramentas:
             st.error("Cuidado: Ação IRREVERSÍVEL.")
             if st.button("SIM, ZERAR TUDO", type="secondary", key='sim_reset', use_container_width=True):
                 if salvar_dados(pd.DataFrame(columns=df.columns), SHEET_NAME_PRINCIPAL):
-                    st.success("Mundo novo criado (Tabela zerada).")
+                    st.success("Tabela zerada.")
                     st.session_state.confirm_reset = False
                     st.rerun()
 
 # === COLUNA 2: UPAR ===
 with col_upar:
-    st.subheader("Registro (Juízo Final)")
+    st.subheader("Registro de Metas")
     
     metas_data = []
     for idx, (cargo, metas) in enumerate(METAS_PONTUACAO.items()):
         msgs = metas['meta_up'] * MENSAGENS_POR_PONTO
         metas_data.append({"Cargo (#)": f"{cargo} ({idx+1})", "Meta UP (msgs)": f"{msgs:,.0f}", "Msgs/Dia": f"{msgs/7:,.0f}"})
-    with st.expander("Ver Metas 📋", expanded=False):
+    with st.expander("Ver Tabela de Metas 📋", expanded=False):
         st.dataframe(pd.DataFrame(metas_data), hide_index=True, use_container_width=True)
     
     st.markdown("---")
     
     with st.container(border=True):
-        # Correção Sort: Garantir string
         lista_opcoes = sorted(df[col_usuario].dropna().astype(str).unique().tolist())
         opcoes_usuarios = ['-- Selecione o Membro --'] + lista_opcoes
         try: def_idx = opcoes_usuarios.index(str(st.session_state.usuario_selecionado_id))
@@ -374,7 +381,7 @@ with col_upar:
             mult_in = st.number_input("Multiplicador", min_value=0.1, value=float(dados[col_mult_ind]), step=0.1, key='mult_ind_input')
 
             st.markdown("---")
-            if st.button("Processar Julgamento", type="primary", key="save_update_button", use_container_width=True):
+            if st.button("Processar Semana", type="primary", key="save_update_button", use_container_width=True):
                 st.session_state.salvar_button_clicked = True
         else:
             st.info("Selecione um membro.")
@@ -415,7 +422,7 @@ with col_upar:
         if salvar_dados(df, SHEET_NAME_PRINCIPAL):
             limpar_campos_interface()
             st.session_state.usuario_selecionado_id = usuario_input_upar
-            st.success(f"Sentença: {situacao}. Cargo: {novo_cargo}")
+            st.success(f"Atualizado: {situacao}. Novo Cargo: {novo_cargo}")
             st.rerun()
 
 # === COLUNA 3: RANKING ===
@@ -428,6 +435,6 @@ with col_ranking:
         df_d['rank'] = df_d[col_cargo].map(c_ord)
         df_d = df_d.sort_values(by=[col_pontos_final, 'rank'], ascending=[False, False])
         
-        # Cores customizadas no estilo Dark/Death Note
+        # Cores customizadas mantidas
         st.dataframe(df_d.style.map(lambda x: 'background-color:rgba(50,205,50,0.2);color:lightgreen' if 'UPADO' in str(x) else ('background-color:rgba(139,0,0,0.4);color:red' if 'REBAIXADO' in str(x) else ('background-color:rgba(218,165,32,0.2);color:gold' if 'MANTEVE' in str(x) else '')), subset=[col_sit]).format(precision=1), use_container_width=True, height=600, column_order=[col_usuario, col_user_id, col_cargo, col_sit, col_pontos_acum, col_pontos_sem, 'Data_Ultima_Atualizacao'])
     else: st.warning("Sem dados.")
