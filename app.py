@@ -5,7 +5,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # ==============================================================================
-# --- 1. CONFIGURAÇÃO DE ESTÉTICA (CORREÇÃO DO BUG KEYBOARD) ---
+# --- 1. CONFIGURAÇÃO DE ESTÉTICA (CORREÇÕES FINAIS) ---
 # ==============================================================================
 def configurar_estetica_visual():
     background_url = "https://images4.alphacoders.com/740/thumb-1920-740591.png"
@@ -24,40 +24,37 @@ def configurar_estetica_visual():
             background-attachment: fixed !important;
         }}
 
-        /* === 2. REMOÇÃO DE POLUIÇÃO VISUAL === */
+        /* === 2. LIMPEZA VISUAL === */
         [data-testid="stElementToolbar"] {{ display: none !important; }}
-        div[data-testid="stExpander"] summary small {{ display: none !important; }}
         button[title="View fullscreen"] {{ display: none !important; }}
+        /* Esconder o label pequeno das caixas de seleção para não repetir o texto */
+        label[data-testid="stLabel"] {{
+            display: none !important;
+        }}
 
-        /* === 3. ESTILO DO EXPANDER (CORREÇÃO DO BUG DE TEXTO) === */
+        /* === 3. EXPANDER (TABELA DE METAS) - CORREÇÃO === */
         div[data-testid="stExpander"] {{
             background-color: #000000 !important;
             border: 1px solid #444 !important;
             border-radius: 5px;
         }}
-        
-        /* AQUI ESTÁ A CORREÇÃO: */
-        /* Aplicar a fonte Gótica APENAS no parágrafo (p) que contém o título */
-        div[data-testid="stExpander"] summary p {{
+        div[data-testid="stExpander"] summary {{
+            color: #ffffff !important;
+        }}
+        /* Mostrar o TEXTO do título */
+        div[data-testid="stExpander"] summary p, div[data-testid="stExpander"] summary span {{
             font-family: 'UnifrakturMaguntia', cursive !important;
             font-size: 22px !important;
             color: #ffffff !important;
-            margin: 0 !important; /* Ajuste fino */
+            display: block !important; /* Forçar aparecer */
         }}
-        
-        /* Garantir que o ícone da seta (que causava o bug) fique com a fonte correta ou invisível */
-        /* Vamos esconder a seta para ficar mais limpo (estilo Death Note minimalista) */
-        div[data-testid="stExpander"] summary span {{
-             display: none !important; 
+        /* Esconder APENAS A SETA (Ícone SVG) */
+        div[data-testid="stExpander"] summary svg {{
+            display: none !important;
         }}
-        /* Caso o título suma, forçamos o display block no P */
-        div[data-testid="stExpander"] summary p {{
-             display: block !important;
-        }}
-        
-        /* Efeito Hover no Título */
-        div[data-testid="stExpander"] summary:hover p {{ 
-            color: #ff0000 !important; 
+        /* Hover Vermelho */
+        div[data-testid="stExpander"] summary:hover p, div[data-testid="stExpander"] summary:hover span {{
+            color: #ff0000 !important;
         }}
 
         /* === 4. CAIXAS DE AVISO (PRETAS) === */
@@ -72,7 +69,7 @@ def configurar_estetica_visual():
             color: #ffffff !important;
         }}
 
-        /* === 5. MENUS E DROPDOWNS (PRETO TOTAL) === */
+        /* === 5. MENUS E DROPDOWNS === */
         div[data-baseweb="select"] > div {{
             background-color: #000000 !important;
             color: #ffffff !important;
@@ -91,30 +88,25 @@ def configurar_estetica_visual():
             color: #ff0000 !important;
         }}
 
-        /* === 6. TABELAS (PRETO TOTAL) === */
+        /* === 6. TABELAS (REMOVER AZUL DO CABEÇALHO) === */
         div[data-testid="stDataFrame"] {{
             background-color: #000000 !important;
             border: 1px solid #ffffff !important;
         }}
-        [data-testid="stDataFrame"] th {{
-            background-color: #111111 !important; 
+        /* Cabeçalho da tabela (Aonde ficava azul) */
+        [data-testid="stDataFrame"] th, [data-testid="stDataFrame"] thead tr {{
+            background-color: #050505 !important; 
             color: #ffffff !important;
-            border-bottom: 1px solid #333 !important;
+            border-bottom: 1px solid #ffffff !important;
         }}
+        /* Linhas da tabela */
         [data-testid="stDataFrame"] td {{
             background-color: #000000 !important;
             color: #dddddd !important;
-            border-bottom: 1px solid #222 !important;
+            border-bottom: 1px solid #333 !important;
         }}
 
-        /* === 7. CONTAINER GERAL === */
-        div[data-testid="stVerticalBlockBorderWrapper"] {{
-            background-color: #000000 !important;
-            border: 1px solid #444 !important;
-            border-radius: 5px;
-        }}
-
-        /* === 8. TIPOGRAFIA GERAL === */
+        /* === 7. TEXTOS E TÍTULOS === */
         h1, h2, h3, h4, h5, h6 {{
             color: #ffffff !important;
             font-family: 'UnifrakturMaguntia', cursive !important;
@@ -125,7 +117,7 @@ def configurar_estetica_visual():
             font-family: 'Courier New', monospace !important;
         }}
 
-        /* === 9. INPUTS E BOTÕES === */
+        /* === 8. INPUTS E BOTÕES === */
         .stTextInput input, .stNumberInput input {{
             background-color: #111111 !important;
             color: #ffffff !important;
@@ -150,6 +142,14 @@ def configurar_estetica_visual():
             color: #ff0000 !important;
             font-family: 'UnifrakturMaguntia', cursive !important;
         }}
+        
+        /* Remover fundo dos containers para ficar clean */
+        div[data-testid="stVerticalBlockBorderWrapper"] {{
+            background-color: rgba(0,0,0,0.85) !important;
+            border: 1px solid #444 !important;
+            border-radius: 5px;
+        }}
+
     </style>
     """, unsafe_allow_html=True)
 
@@ -295,7 +295,7 @@ with col_ferramentas:
     
     with st.container(border=True):
         st.markdown("##### ➕ Adicionar Membro")
-        usuario_input_add = st.text_input("Nome", key='usuario_input_add')
+        usuario_input_add = st.text_input("Nome", key='usuario_input_add') # Label limpo
         user_id_input_add = st.text_input("ID (Opcional)", key='user_id_input_add', value='N/A')
         cargo_input_add = st.selectbox("Cargo Inicial", CARGOS_LISTA, index=cargo_inicial_default, key='cargo_select_add')
         
@@ -321,8 +321,13 @@ with col_ferramentas:
         st.markdown("##### ✏️ Editar Nome")
         if not df.empty:
             lista_edit = sorted(df[col_usuario].dropna().astype(str).unique().tolist())
-            usuario_para_editar = st.selectbox("Quem mudou de nome?", lista_edit, key='user_edit_select')
-            novo_nome_input = st.text_input("Novo Nome", key='new_name_input')
+            # CORREÇÃO: Ocultamos o label "Quem mudou de nome?" via CSS, mas mantemos o selectbox funcionando
+            st.markdown("Selecione o membro antigo:") 
+            usuario_para_editar = st.selectbox("Selecione para editar", lista_edit, key='user_edit_select', label_visibility="collapsed")
+            
+            st.markdown("Novo nome:")
+            novo_nome_input = st.text_input("Digite o novo nome", key='new_name_input', label_visibility="collapsed")
+            
             if st.button("Salvar Alteração", use_container_width=True):
                 if novo_nome_input:
                     if novo_nome_input in df[col_usuario].astype(str).values:
@@ -345,7 +350,9 @@ with col_ferramentas:
         if 'confirm_reset' not in st.session_state: st.session_state.confirm_reset = False
         if not df.empty:
             opcoes_remocao = sorted(df[col_usuario].dropna().astype(str).unique().tolist())
-            usuario_a_remover = st.selectbox("Remover Usuário", ['-- Selecione --'] + opcoes_remocao, key='remove_user_select')
+            st.markdown("Selecione para remover:")
+            usuario_a_remover = st.selectbox("Selecione para remover", ['-- Selecione --'] + opcoes_remocao, key='remove_user_select', label_visibility="collapsed")
+            
             if usuario_a_remover != '-- Selecione --':
                 if st.button(f"Confirmar Remoção de {usuario_a_remover}", type="secondary", key='final_remove_button', use_container_width=True):
                     df = df[df[col_usuario].astype(str) != str(usuario_a_remover)]
@@ -371,6 +378,8 @@ with col_upar:
     for idx, (cargo, metas) in enumerate(METAS_PONTUACAO.items()):
         msgs = metas['meta_up'] * MENSAGENS_POR_PONTO
         metas_data.append({"Cargo (#)": f"{cargo} ({idx+1})", "Meta UP (msgs)": f"{msgs:,.0f}", "Msgs/Dia": f"{msgs/7:,.0f}"})
+    
+    # EXPANDER (Texto agora visível, seta invisível)
     with st.expander("Ver Tabela de Metas 📋", expanded=False):
         st.dataframe(pd.DataFrame(metas_data), hide_index=True, use_container_width=True)
     
@@ -382,7 +391,16 @@ with col_upar:
         try: def_idx = opcoes_usuarios.index(str(st.session_state.usuario_selecionado_id))
         except: def_idx = 0
         
-        usuario_selecionado = st.selectbox("Selecione o Membro", opcoes_usuarios, index=def_idx, key='select_user_update', on_change=lambda: st.session_state.__setitem__('usuario_selecionado_id', st.session_state.select_user_update))
+        # CORREÇÃO: Título manual, selectbox com label oculto
+        st.markdown("##### Selecione o Membro")
+        usuario_selecionado = st.selectbox(
+            "Selecione o Membro (Oculto)", # Label interno (oculto via CSS/parametro)
+            opcoes_usuarios, 
+            index=def_idx, 
+            key='select_user_update',
+            label_visibility="collapsed", # Isso remove a repetição visual
+            on_change=lambda: st.session_state.__setitem__('usuario_selecionado_id', st.session_state.select_user_update)
+        )
         st.session_state.usuario_selecionado_id = usuario_selecionado
 
         if usuario_selecionado != '-- Selecione o Membro --' and not df.empty and usuario_selecionado in df[col_usuario].astype(str).values:
@@ -395,7 +413,8 @@ with col_upar:
                     st.markdown(f"""<div style="margin-bottom: 5px;"><strong>ID:</strong> <span style="color: #32CD32; font-family: 'Courier New'; font-weight: bold;">{dados.get(col_user_id, 'N/A')}</span></div>""", unsafe_allow_html=True)
                     
                     c_idx = CARGOS_LISTA.index(dados[col_cargo])
-                    cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=c_idx, key='cargo_select_update')
+                    st.markdown("Cargo Atual:")
+                    cargo_input = st.selectbox("Cargo Atual", CARGOS_LISTA, index=c_idx, key='cargo_select_update', label_visibility="collapsed")
                     
                     if dados[col_sit] in ["UPADO", "REBAIXADO", "MANTEVE"]: st.info(f"Ciclo finalizado.")
                     else: st.info("Ciclo semanal.")
@@ -406,7 +425,8 @@ with col_upar:
                     with c2: st.metric("Semana", f"{dados[col_pontos_sem]:.1f}")
                     with c3: st.metric("Mult.", f"{dados[col_mult_ind]:.1f}x")
                     st.markdown("---")
-                    semana_input = st.number_input("Semana (1/1)", min_value=1, max_value=1, value=1, key='semana_input_update')
+                    st.markdown("Semana do Ciclo:")
+                    semana_input = st.number_input("Semana (1/1)", min_value=1, max_value=1, value=1, key='semana_input_update', label_visibility="collapsed")
                 else:
                     st.error("Cargo desconhecido.")
                     cargo_input = st.selectbox("Cargo", CARGOS_LISTA, index=0, key='cargo_select_update')
@@ -414,9 +434,15 @@ with col_upar:
             st.divider()
             st.markdown("##### Dados Semanais")
             cp1, cp2 = st.columns(2)
-            with cp1: msgs_in = st.number_input("Mensagens", min_value=0, value=int(st.session_state.get('mensagens_input', 0)), step=10, key='mensagens_input')
-            with cp2: bonus_in = st.number_input("Bônus (Pts)", min_value=0.0, value=st.session_state.get('bonus_input', 0.0), step=1.0, key='bonus_input')
-            mult_in = st.number_input("Multiplicador", min_value=0.1, value=float(dados[col_mult_ind]), step=0.1, key='mult_ind_input')
+            with cp1: 
+                st.markdown("Mensagens:")
+                msgs_in = st.number_input("Mensagens", min_value=0, value=int(st.session_state.get('mensagens_input', 0)), step=10, key='mensagens_input', label_visibility="collapsed")
+            with cp2: 
+                st.markdown("Bônus (Pts):")
+                bonus_in = st.number_input("Bônus", min_value=0.0, value=st.session_state.get('bonus_input', 0.0), step=1.0, key='bonus_input', label_visibility="collapsed")
+            
+            st.markdown("Multiplicador:")
+            mult_in = st.number_input("Multiplicador", min_value=0.1, value=float(dados[col_mult_ind]), step=0.1, key='mult_ind_input', label_visibility="collapsed")
 
             st.markdown("---")
             if st.button("Processar Semana", type="primary", key="save_update_button", use_container_width=True):
@@ -466,5 +492,7 @@ with col_ranking:
         c_ord = {c: i for i, c in enumerate(CARGOS_LISTA)}
         df_d['rank'] = df_d[col_cargo].map(c_ord)
         df_d = df_d.sort_values(by=[col_pontos_final, 'rank'], ascending=[False, False])
+        
+        # Cores customizadas mantidas
         st.dataframe(df_d.style.map(lambda x: 'background-color:rgba(50,205,50,0.3);color:#ccffcc' if 'UPADO' in str(x) else ('background-color:rgba(200,0,0,0.4);color:#ffcccc' if 'REBAIXADO' in str(x) else ('background-color:rgba(218,165,32,0.3);color:#ffffcc' if 'MANTEVE' in str(x) else '')), subset=[col_sit]).format(precision=1), use_container_width=True, height=600, column_order=[col_usuario, col_user_id, col_cargo, col_sit, col_pontos_acum, col_pontos_sem, 'Data_Ultima_Atualizacao'])
     else: st.warning("Sem dados.")
