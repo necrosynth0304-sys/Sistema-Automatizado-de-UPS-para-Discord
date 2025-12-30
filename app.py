@@ -5,7 +5,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # ==============================================================================
-# --- 1. CONFIGURAÇÃO DE ESTÉTICA (CORREÇÃO FINAL DAS CAIXAS AZUIS) ---
+# --- 1. CONFIGURAÇÃO DE ESTÉTICA (CORREÇÃO DO BUG KEYBOARD) ---
 # ==============================================================================
 def configurar_estetica_visual():
     background_url = "https://images4.alphacoders.com/740/thumb-1920-740591.png"
@@ -25,37 +25,49 @@ def configurar_estetica_visual():
         }}
 
         /* === 2. REMOÇÃO DE POLUIÇÃO VISUAL === */
-        [data-testid="stElementToolbar"], .stElementToolbar {{ display: none !important; visibility: hidden !important; }}
+        [data-testid="stElementToolbar"] {{ display: none !important; }}
         div[data-testid="stExpander"] summary small {{ display: none !important; }}
         button[title="View fullscreen"] {{ display: none !important; }}
 
-        /* === 3. ESTILO DO EXPANDER (TABELA DE METAS) === */
+        /* === 3. ESTILO DO EXPANDER (CORREÇÃO DO BUG DE TEXTO) === */
         div[data-testid="stExpander"] {{
             background-color: #000000 !important;
             border: 1px solid #444 !important;
             border-radius: 5px;
         }}
-        div[data-testid="stExpander"] summary span {{
+        
+        /* AQUI ESTÁ A CORREÇÃO: */
+        /* Aplicar a fonte Gótica APENAS no parágrafo (p) que contém o título */
+        div[data-testid="stExpander"] summary p {{
             font-family: 'UnifrakturMaguntia', cursive !important;
             font-size: 22px !important;
             color: #ffffff !important;
+            margin: 0 !important; /* Ajuste fino */
         }}
-        div[data-testid="stExpander"] summary:hover span {{ color: #ff0000 !important; }}
-        div[data-testid="stExpander"] summary svg {{ fill: #ffffff !important; }}
+        
+        /* Garantir que o ícone da seta (que causava o bug) fique com a fonte correta ou invisível */
+        /* Vamos esconder a seta para ficar mais limpo (estilo Death Note minimalista) */
+        div[data-testid="stExpander"] summary span {{
+             display: none !important; 
+        }}
+        /* Caso o título suma, forçamos o display block no P */
+        div[data-testid="stExpander"] summary p {{
+             display: block !important;
+        }}
+        
+        /* Efeito Hover no Título */
+        div[data-testid="stExpander"] summary:hover p {{ 
+            color: #ff0000 !important; 
+        }}
 
-        /* === 4. CAIXAS DE AVISO (FIX PARA REMOVER O AZUL) === */
-        /* Mira no container exato do alerta e força preto */
+        /* === 4. CAIXAS DE AVISO (PRETAS) === */
         div[data-testid="stAlert"] {{
             background-color: #000000 !important;
             color: #ffffff !important;
             border: 1px solid #ffffff !important;
         }}
-        /* Garante que o fundo interno seja transparente para não sobrepor o preto */
-        div[data-testid="stAlert"] > div {{
-            background-color: transparent !important;
-        }}
-        /* Força os ícones e textos internos a serem brancos */
-        div[data-testid="stAlert"] svg, div[data-testid="stAlert"] [data-testid="stMarkdownContainer"] p {{
+        div[data-testid="stAlert"] > div {{ background-color: transparent !important; }}
+        div[data-testid="stAlert"] svg, div[data-testid="stAlert"] p {{
             fill: #ffffff !important;
             color: #ffffff !important;
         }}
