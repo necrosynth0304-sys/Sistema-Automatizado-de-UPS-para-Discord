@@ -5,7 +5,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # ==============================================================================
-# --- 1. CONFIGURAÇÃO DE ESTÉTICA (CORREÇÃO FINAL: EXPANDER E REMOÇÃO DE ÍCONES) ---
+# --- 1. CONFIGURAÇÃO DE ESTÉTICA (CORREÇÃO DO BUG DA FONTE) ---
 # ==============================================================================
 def configurar_estetica_visual():
     background_url = "https://images4.alphacoders.com/740/thumb-1920-740591.png"
@@ -24,58 +24,60 @@ def configurar_estetica_visual():
             background-attachment: fixed !important;
         }}
 
-        /* === 2. LIMPEZA TOTAL (UI) === */
+        /* === 2. LIMPEZA DE INTERFACE === */
         [data-testid="stElementToolbar"] {{ display: none !important; }}
         button[title="View fullscreen"] {{ display: none !important; }}
-        /* Esconder labels padrão para evitar repetição */
         label[data-testid="stLabel"] {{ display: none !important; }}
-        
-        /* === 3. EXPANDER (TABELA DE METAS) - CORREÇÃO CRÍTICA DO ÍCONE === */
+
+        /* === 3. CORREÇÃO CRÍTICA DO EXPANDER ("KEYBOARD..." BUG) === */
         div[data-testid="stExpander"] {{
             background-color: #000000 !important;
             border: 1px solid #444 !important;
             border-radius: 5px;
         }}
         
-        /* ESCONDER A SETA (ÍCONE) QUE VIROU TEXTO "KEYBOARD..." */
-        div[data-testid="stExpander"] summary svg {{
-            display: none !important;
-            width: 0 !important;
-            height: 0 !important;
-            opacity: 0 !important;
+        /* PASSO 1: Resetar a fonte do container para evitar que o ícone vire texto gótico */
+        div[data-testid="stExpander"] summary {{
+            font-family: sans-serif !important; 
+            color: #ffffff !important;
         }}
-        
-        /* ESTILIZAR APENAS O TEXTO DO TÍTULO */
-        div[data-testid="stExpander"] summary p, 
-        div[data-testid="stExpander"] summary span {{
+
+        /* PASSO 2: Aplicar a fonte Gótica EXCLUSIVAMENTE no texto do título (P) */
+        div[data-testid="stExpander"] summary p {{
             font-family: 'UnifrakturMaguntia', cursive !important;
             font-size: 22px !important;
             color: #ffffff !important;
-            margin-left: 0 !important; /* Remove margem deixada pelo ícone */
+            margin: 0 !important;
+            display: block !important;
         }}
-        
-        /* Hover Vermelho no Título */
+
+        /* PASSO 3: Assassinar o ícone da seta para ele não aparecer nem como texto nem como seta */
+        div[data-testid="stExpander"] summary > svg,
+        div[data-testid="stExpander"] summary > span:first-child {{
+            display: none !important;
+            opacity: 0 !important;
+            width: 0 !important;
+        }}
+
+        /* Hover Vermelho apenas no texto */
         div[data-testid="stExpander"] summary:hover p {{
             color: #ff0000 !important;
         }}
 
-        /* === 4. DROPDOWNS E MENUS (PRETO TOTAL) === */
+        /* === 4. DROPDOWNS E MENUS === */
         div[data-baseweb="select"] > div {{
             background-color: #000000 !important;
             color: #ffffff !important;
             border: 1px solid #ffffff !important;
         }}
-        /* Fundo da lista de opções */
         div[data-baseweb="menu"], div[data-baseweb="popover"], ul {{
             background-color: #000000 !important;
             border: 1px solid #333 !important;
         }}
-        /* Opção individual */
         li[role="option"] {{
             background-color: #000000 !important;
             color: #ffffff !important;
         }}
-        /* Hover na opção */
         li[role="option"]:hover, li[role="option"][aria-selected="true"] {{
             background-color: #333333 !important;
             color: #ff0000 !important;
@@ -93,25 +95,23 @@ def configurar_estetica_visual():
             color: #ffffff !important;
         }}
 
-        /* === 6. TABELAS (PRETO TOTAL) === */
+        /* === 6. TABELAS (PRETO TOTAL NO CABEÇALHO) === */
         div[data-testid="stDataFrame"] {{
             background-color: #000000 !important;
             border: 1px solid #ffffff !important;
         }}
-        /* Cabeçalho */
         [data-testid="stDataFrame"] th, [data-testid="stDataFrame"] thead tr {{
-            background-color: #050505 !important; 
+            background-color: #000000 !important; 
             color: #ffffff !important;
-            border-bottom: 1px solid #ffffff !important;
+            border-bottom: 1px solid #333 !important;
         }}
-        /* Células */
         [data-testid="stDataFrame"] td {{
             background-color: #000000 !important;
             color: #dddddd !important;
-            border-bottom: 1px solid #333 !important;
+            border-bottom: 1px solid #222 !important;
         }}
 
-        /* === 7. TIPOGRAFIA === */
+        /* === 7. TIPOGRAFIA GERAL === */
         h1, h2, h3, h4, h5, h6 {{
             color: #ffffff !important;
             font-family: 'UnifrakturMaguntia', cursive !important;
@@ -148,7 +148,6 @@ def configurar_estetica_visual():
             font-family: 'UnifrakturMaguntia', cursive !important;
         }}
         
-        /* Container Geral (Borda fina) */
         div[data-testid="stVerticalBlockBorderWrapper"] {{
             background-color: rgba(0,0,0,0.85) !important;
             border: 1px solid #444 !important;
@@ -382,7 +381,7 @@ with col_upar:
         msgs = metas['meta_up'] * MENSAGENS_POR_PONTO
         metas_data.append({"Cargo (#)": f"{cargo} ({idx+1})", "Meta UP (msgs)": f"{msgs:,.0f}", "Msgs/Dia": f"{msgs/7:,.0f}"})
     
-    # EXPANDER COM ÍCONE ESCONDIDO E FONTE GÓTICA NO TÍTULO
+    # EXPANDER COM CORREÇÃO DE FONTE E SEM SETA
     with st.expander("Ver Tabela de Metas 📋", expanded=False):
         st.dataframe(pd.DataFrame(metas_data), hide_index=True, use_container_width=True)
     
@@ -450,7 +449,7 @@ with col_upar:
             if st.button("Processar Semana", type="primary", key="save_update_button", use_container_width=True):
                 st.session_state.salvar_button_clicked = True
         else:
-            # REMOVIDA A CAIXA "SELECIONE UM MEMBRO" REPETITIVA
+            # CORREÇÃO: Removido o st.info("Selecione um membro.") daqui para não repetir a caixa
             usuario_input_upar = None
             
     if st.session_state.salvar_button_clicked and usuario_input_upar:
