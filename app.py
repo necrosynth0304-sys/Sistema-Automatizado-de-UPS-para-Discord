@@ -5,7 +5,7 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # ==============================================================================
-# --- 1. CONFIGURAÇÃO DE ESTÉTICA (CORREÇÃO DO BUG DA FONTE) ---
+# --- 1. CONFIGURAÇÃO DE ESTÉTICA (CORREÇÃO: FONTE PADRÃO NO EXPANDER) ---
 # ==============================================================================
 def configurar_estetica_visual():
     background_url = "https://images4.alphacoders.com/740/thumb-1920-740591.png"
@@ -29,39 +29,36 @@ def configurar_estetica_visual():
         button[title="View fullscreen"] {{ display: none !important; }}
         label[data-testid="stLabel"] {{ display: none !important; }}
 
-        /* === 3. CORREÇÃO CRÍTICA DO EXPANDER ("KEYBOARD..." BUG) === */
+        /* === 3. EXPANDER (TABELA DE METAS) - VOLTANDO AO PADRÃO === */
         div[data-testid="stExpander"] {{
             background-color: #000000 !important;
             border: 1px solid #444 !important;
             border-radius: 5px;
         }}
         
-        /* PASSO 1: Resetar a fonte do container para evitar que o ícone vire texto gótico */
+        /* AQUI: Usar fonte NORMAL para evitar bugs */
         div[data-testid="stExpander"] summary {{
-            font-family: sans-serif !important; 
+            font-family: "Source Sans Pro", sans-serif !important; /* Fonte Padrão Limpa */
             color: #ffffff !important;
+            font-size: 16px !important;
+            font-weight: bold !important;
         }}
-
-        /* PASSO 2: Aplicar a fonte Gótica EXCLUSIVAMENTE no texto do título (P) */
-        div[data-testid="stExpander"] summary p {{
-            font-family: 'UnifrakturMaguntia', cursive !important;
-            font-size: 22px !important;
-            color: #ffffff !important;
-            margin: 0 !important;
-            display: block !important;
+        
+        /* Garantir que o ícone da seta (SVG) apareça corretamente em branco */
+        div[data-testid="stExpander"] summary svg {{
+            display: inline-block !important;
+            fill: #ffffff !important;
+            opacity: 1 !important;
+            width: 1rem !important;
+            height: 1rem !important;
         }}
-
-        /* PASSO 3: Assassinar o ícone da seta para ele não aparecer nem como texto nem como seta */
-        div[data-testid="stExpander"] summary > svg,
-        div[data-testid="stExpander"] summary > span:first-child {{
-            display: none !important;
-            opacity: 0 !important;
-            width: 0 !important;
-        }}
-
-        /* Hover Vermelho apenas no texto */
-        div[data-testid="stExpander"] summary:hover p {{
+        
+        /* Hover Vermelho (Opcional, para estilo) */
+        div[data-testid="stExpander"] summary:hover {{
             color: #ff0000 !important;
+        }}
+        div[data-testid="stExpander"] summary:hover svg {{
+            fill: #ff0000 !important;
         }}
 
         /* === 4. DROPDOWNS E MENUS === */
@@ -95,15 +92,15 @@ def configurar_estetica_visual():
             color: #ffffff !important;
         }}
 
-        /* === 6. TABELAS (PRETO TOTAL NO CABEÇALHO) === */
+        /* === 6. TABELAS (PRETO TOTAL) === */
         div[data-testid="stDataFrame"] {{
             background-color: #000000 !important;
             border: 1px solid #ffffff !important;
         }}
         [data-testid="stDataFrame"] th, [data-testid="stDataFrame"] thead tr {{
-            background-color: #000000 !important; 
+            background-color: #050505 !important; 
             color: #ffffff !important;
-            border-bottom: 1px solid #333 !important;
+            border-bottom: 1px solid #ffffff !important;
         }}
         [data-testid="stDataFrame"] td {{
             background-color: #000000 !important;
@@ -111,12 +108,13 @@ def configurar_estetica_visual():
             border-bottom: 1px solid #222 !important;
         }}
 
-        /* === 7. TIPOGRAFIA GERAL === */
+        /* === 7. TIPOGRAFIA GERAL (GÓTICA NO RESTO DO SITE) === */
         h1, h2, h3, h4, h5, h6 {{
             color: #ffffff !important;
             font-family: 'UnifrakturMaguntia', cursive !important;
             text-shadow: 2px 2px 0px #000000;
         }}
+        /* Textos comuns continuam courier */
         p, label, span, div, caption {{
             color: #eeeeee !important;
             font-family: 'Courier New', monospace !important;
@@ -381,7 +379,7 @@ with col_upar:
         msgs = metas['meta_up'] * MENSAGENS_POR_PONTO
         metas_data.append({"Cargo (#)": f"{cargo} ({idx+1})", "Meta UP (msgs)": f"{msgs:,.0f}", "Msgs/Dia": f"{msgs/7:,.0f}"})
     
-    # EXPANDER COM CORREÇÃO DE FONTE E SEM SETA
+    # EXPANDER COM FONTE PADRÃO (SEM BUG DO ÍCONE)
     with st.expander("Ver Tabela de Metas 📋", expanded=False):
         st.dataframe(pd.DataFrame(metas_data), hide_index=True, use_container_width=True)
     
@@ -449,7 +447,7 @@ with col_upar:
             if st.button("Processar Semana", type="primary", key="save_update_button", use_container_width=True):
                 st.session_state.salvar_button_clicked = True
         else:
-            # CORREÇÃO: Removido o st.info("Selecione um membro.") daqui para não repetir a caixa
+            # CAIXA REPETIDA REMOVIDA
             usuario_input_upar = None
             
     if st.session_state.salvar_button_clicked and usuario_input_upar:
