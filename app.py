@@ -5,20 +5,20 @@ import gspread
 from google.oauth2.service_account import Credentials
 
 # ==============================================================================
-# --- 1. CONFIGURAÇÃO DE ESTÉTICA (SÓLIDA E DARK) ---
+# --- 1. CONFIGURAÇÃO DE ESTÉTICA (DARK/BLACKOUT TOTAL) ---
 # ==============================================================================
 def configurar_estetica_visual():
-    # Link da imagem solicitada
-    background_url = "https://images4.alphacoders.com/153/thumb-1920-153254.jpg"
+    # NOVO WALLPAPER SOLICITADO
+    background_url = "https://images4.alphacoders.com/740/thumb-1920-740591.png"
 
     st.markdown(f"""
     <style>
         /* Importar Fonte Gótica */
         @import url('https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&display=swap');
 
-        /* === FUNDO DA PÁGINA (FORÇADO) === */
+        /* === 1. FUNDO DA PÁGINA (IMAGEM) === */
         .stApp {{
-            background-color: #000000 !important; /* Se a imagem falhar, fundo preto */
+            background-color: #000000 !important;
             background-image: url("{background_url}") !important;
             background-size: cover !important;
             background-position: center !important;
@@ -26,45 +26,90 @@ def configurar_estetica_visual():
             background-attachment: fixed !important;
         }}
 
-        /* === CAIXAS E CONTAINERS (PRETO SÓLIDO) === */
-        div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"] {{
-            background-color: #000000 !important; /* Preto Sólido */
-            border: 1px solid #444 !important;
-            border-radius: 8px;
-            padding: 15px;
+        /* === 2. REMOVER O ÍCONE "KEYBOARD" E TOOLBAR DAS TABELAS === */
+        [data-testid="stElementToolbar"] {{
+            display: none !important;
+        }}
+        
+        /* === 3. ELIMINAR O AZUL DAS CAIXAS DE INFORMAÇÃO (st.info/st.warning) === */
+        /* Transforma as caixas azuis em Pretas com Borda Branca */
+        .stAlert {{
+            background-color: #000000 !important; 
+            color: #ffffff !important; 
+            border: 1px solid #ffffff !important; 
+        }}
+        /* Muda a cor do ícone (i) dentro da caixa para branco */
+        .stAlert svg {{
+            fill: #ffffff !important;
         }}
 
-        /* === TÍTULOS (BRANCOS) === */
+        /* === 4. MENU DE SELEÇÃO (DROPDOWN) === */
+        /* A caixa fechada */
+        div[data-baseweb="select"] > div {{
+            background-color: #000000 !important;
+            color: #ffffff !important;
+            border: 1px solid #ffffff !important;
+        }}
+        /* A lista que abre (Popover) - Fundo Preto */
+        div[data-baseweb="menu"], div[data-baseweb="popover"], ul {{
+            background-color: #000000 !important;
+            border: 1px solid #333 !important;
+        }}
+        /* As opções dentro da lista */
+        li[role="option"] {{
+            background-color: #000000 !important;
+            color: #ffffff !important;
+        }}
+        /* Opção selecionada/hover */
+        li[role="option"]:hover, li[role="option"][aria-selected="true"] {{
+            background-color: #333333 !important;
+            color: #ff0000 !important;
+        }}
+
+        /* === 5. TABELAS (DATAFRAME) - TUDO PRETO === */
+        div[data-testid="stDataFrame"] {{
+            background-color: #000000 !important;
+            border: 1px solid #ffffff !important;
+        }}
+        /* Cabeçalho da tabela */
+        [data-testid="stDataFrame"] th {{
+            background-color: #111111 !important; 
+            color: #ffffff !important;
+            border-bottom: 1px solid #333 !important;
+        }}
+        /* Células da tabela */
+        [data-testid="stDataFrame"] td {{
+            background-color: #000000 !important;
+            color: #dddddd !important;
+            border-bottom: 1px solid #222 !important;
+        }}
+
+        /* === 6. CONTAINERS E CAIXAS GERAIS === */
+        div[data-testid="stVerticalBlockBorderWrapper"], div[data-testid="stExpander"] {{
+            background-color: #000000 !important;
+            border: 1px solid #444 !important;
+            border-radius: 5px;
+        }}
+
+        /* === 7. TEXTOS E TÍTULOS === */
         h1, h2, h3, h4, h5, h6 {{
             color: #ffffff !important;
             font-family: 'UnifrakturMaguntia', cursive !important;
-            font-weight: 400;
-            letter-spacing: 1.5px;
             text-shadow: 2px 2px 0px #000000;
         }}
-        
-        /* === TEXTOS GERAIS === */
-        p, div, label, span, li, caption {{
-            color: #dddddd !important;
-            font-family: 'Courier New', monospace !important; 
-            font-weight: bold;
+        p, label, span, div, caption {{
+            color: #eeeeee !important;
+            font-family: 'Courier New', monospace !important;
         }}
 
-        /* === INPUTS (CAIXAS DE DIGITAÇÃO) === */
+        /* === 8. INPUTS (DIGITAÇÃO) === */
         .stTextInput input, .stNumberInput input {{
-            background-color: #1a1a1a !important;
+            background-color: #111111 !important;
             color: #ffffff !important;
             border: 1px solid #ffffff !important;
         }}
         
-        /* === DROPDOWNS === */
-        div[data-baseweb="select"] > div {{
-            background-color: #1a1a1a !important;
-            color: #ffffff !important;
-            border: 1px solid #ffffff !important;
-        }}
-        
-        /* === BOTÕES (VERMELHO E PRETO) === */
+        /* === 9. BOTÕES === */
         button {{
             background-color: #000000 !important;
             color: #ff0000 !important;
@@ -79,26 +124,12 @@ def configurar_estetica_visual():
             box-shadow: 0 0 15px #ff0000;
             border-color: #ffffff !important;
         }}
-
-        /* === TABELAS === */
-        div[data-testid="stDataFrame"] {{
-            background-color: #000000 !important;
-            border: 1px solid #ffffff;
-        }}
-
-        /* === MÉTRICAS === */
+        
+        /* === 10. MÉTRICAS === */
         [data-testid="stMetricValue"] {{
             color: #ff0000 !important;
             font-family: 'UnifrakturMaguntia', cursive !important;
         }}
-        
-        /* === ALERTAS === */
-        .stAlert {{
-            background-color: #000000 !important;
-            color: #ffffff !important;
-            border: 1px solid #ff0000;
-        }}
-        
     </style>
     """, unsafe_allow_html=True)
 
@@ -227,7 +258,7 @@ def limpar_campos_interface():
 # ==============================================================================
 st.set_page_config(page_title="Sistema de Ups", layout="wide")
 
-# >>> CHAMADA DA ESTÉTICA <<<
+# >>> ATIVAR ESTÉTICA DARK <<<
 configurar_estetica_visual()
 
 st.title("Sistema de Ups")
@@ -350,7 +381,7 @@ with col_upar:
             with st.container():
                 if dados[col_cargo] in METAS_PONTUACAO:
                     st.markdown(f"**Membro:** `{usuario_input_upar}`") 
-                    # ID EM VERDE
+                    # ID EM VERDE (Código de Cor: #32CD32 - LimeGreen)
                     st.markdown(f"""<div style="margin-bottom: 5px;"><strong>ID:</strong> <span style="color: #32CD32; font-family: 'Courier New'; font-weight: bold;">{dados.get(col_user_id, 'N/A')}</span></div>""", unsafe_allow_html=True)
                     
                     c_idx = CARGOS_LISTA.index(dados[col_cargo])
@@ -432,6 +463,6 @@ with col_ranking:
         df_d['rank'] = df_d[col_cargo].map(c_ord)
         df_d = df_d.sort_values(by=[col_pontos_final, 'rank'], ascending=[False, False])
         
-        # Cores customizadas mantidas
-        st.dataframe(df_d.style.map(lambda x: 'background-color:rgba(50,205,50,0.2);color:lightgreen' if 'UPADO' in str(x) else ('background-color:rgba(139,0,0,0.4);color:red' if 'REBAIXADO' in str(x) else ('background-color:rgba(218,165,32,0.2);color:gold' if 'MANTEVE' in str(x) else '')), subset=[col_sit]).format(precision=1), use_container_width=True, height=600, column_order=[col_usuario, col_user_id, col_cargo, col_sit, col_pontos_acum, col_pontos_sem, 'Data_Ultima_Atualizacao'])
+        # Cores customizadas mantidas (Verde/Vermelho translúcido para leitura no preto)
+        st.dataframe(df_d.style.map(lambda x: 'background-color:rgba(50,205,50,0.3);color:#ccffcc' if 'UPADO' in str(x) else ('background-color:rgba(200,0,0,0.4);color:#ffcccc' if 'REBAIXADO' in str(x) else ('background-color:rgba(218,165,32,0.3);color:#ffffcc' if 'MANTEVE' in str(x) else '')), subset=[col_sit]).format(precision=1), use_container_width=True, height=600, column_order=[col_usuario, col_user_id, col_cargo, col_sit, col_pontos_acum, col_pontos_sem, 'Data_Ultima_Atualizacao'])
     else: st.warning("Sem dados.")
