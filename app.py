@@ -6,7 +6,7 @@ from google.oauth2.service_account import Credentials
 
 # --- CONFIGURAÇÃO DAS REGRAS DO SISTEMA (PONTUAÇÃO E CICLOS) ---
 
-# NOVO MAPA DE PONTUAÇÃO - VERSÃO "REALISTA" (Aprovada antes das dificuldades extras)
+# NOVO MAPA DE PONTUAÇÃO - VERSÃO "REALISTA" (Original Aprovada)
 # Conversão: 1 Ponto = 50 Mensagens | Ciclo: 1 Semana
 METAS_PONTUACAO = {
     # Posições 1 a 4 (Base)
@@ -15,7 +15,7 @@ METAS_PONTUACAO = {
     'woo':       {'ciclo': 1, 'meta_up': 25, 'meta_manter': 20},      # 1.250 / 1.000 msgs
     'sex':       {'ciclo': 1, 'meta_up': 35, 'meta_manter': 28},      # 1.750 / 1.400 msgs
     
-    # Posições 5 a 7 (Intermediários - Curva Suave)
+    # Posições 5 a 7 (Intermediários)
     'note':      {'ciclo': 1, 'meta_up': 45, 'meta_manter': 36},      # 2.250 / 1.800 msgs
     'aura':      {'ciclo': 1, 'meta_up': 55, 'meta_manter': 44},      # 2.750 / 2.200 msgs
     'all wild':  {'ciclo': 1, 'meta_up': 66, 'meta_manter': 53},      # 3.300 / 2.650 msgs
@@ -25,7 +25,7 @@ METAS_PONTUACAO = {
     'mello':     {'ciclo': 1, 'meta_up': 92, 'meta_manter': 74},      # 4.600 / 3.700 msgs
     'void':      {'ciclo': 1, 'meta_up': 106, 'meta_manter': 85},     # 5.300 / 4.250 msgs
     
-    # Posições 11 a 13 (Elite - Desafiador mas possível)
+    # Posições 11 a 13 (Elite)
     'dawn':      {'ciclo': 1, 'meta_up': 122, 'meta_manter': 98},     # 6.100 / 4.900 msgs
     'upper':     {'ciclo': 1, 'meta_up': 140, 'meta_manter': 112},    # 7.000 / 5.600 msgs
     'Light':     {'ciclo': 1, 'meta_up': 160, 'meta_manter': 128},    # 8.000 / 6.400 msgs
@@ -115,7 +115,7 @@ def carregar_dados(sheet_name):
             
         df = df.reindex(columns=COLUNAS_PADRAO, fill_value='0.0')
         
-        # --- SEGURANÇA: Garantir que usuário seja String ---
+        # --- SEGURANÇA: Garantir que usuário seja String para evitar erro de sort ---
         df[col_usuario] = df[col_usuario].astype(str)
         
         cols_to_convert = [col_sem, col_pontos_acum, col_pontos_sem, col_bonus_sem, col_mult_ind, col_pontos_final]
@@ -243,20 +243,21 @@ with col_ferramentas:
         
     st.markdown("---")
 
-    # 2. Editar Nome de Usuário
-    with st.expander("✏️ Editar Nome de Usuário", expanded=False):
-        st.info("Altera o nome mantendo todos os pontos e cargo.")
+    # 2. Editar Nome de Usuário (CAIXA VISÍVEL)
+    with st.container(border=True):
+        st.markdown("##### ✏️ Editar Nome de Usuário")
+        st.caption("Altera o nome mantendo pontos e cargo.")
         
         if not df.empty:
             # Lista ordenada com segurança de string
             lista_edit = sorted(df[col_usuario].dropna().astype(str).unique().tolist())
-            usuario_para_editar = st.selectbox("Selecione quem mudou de nome", lista_edit, key='user_edit_select')
-            novo_nome_input = st.text_input("Novo Nome (Ex: UsuarioV2)", key='new_name_input')
+            usuario_para_editar = st.selectbox("Quem mudou de nome?", lista_edit, key='user_edit_select')
+            novo_nome_input = st.text_input("Novo Nome", key='new_name_input')
             
             if st.button("Salvar Novo Nome", use_container_width=True):
                 if novo_nome_input:
                     if novo_nome_input in df[col_usuario].astype(str).values:
-                        st.error(f"Erro: O nome '{novo_nome_input}' já está sendo usado por outro membro.")
+                        st.error(f"Erro: O nome '{novo_nome_input}' já existe.")
                     else:
                         # Encontra o índice e atualiza
                         idx = df[df[col_usuario].astype(str) == str(usuario_para_editar)].index[0]
@@ -267,7 +268,7 @@ with col_ferramentas:
                             if st.session_state.usuario_selecionado_id == usuario_para_editar:
                                 st.session_state.usuario_selecionado_id = novo_nome_input
                                 
-                            st.success(f"Nome alterado de **{usuario_para_editar}** para **{novo_nome_input}** com sucesso!")
+                            st.success(f"Nome alterado: **{usuario_para_editar}** -> **{novo_nome_input}**")
                             st.rerun()
                 else:
                     st.warning("Digite o novo nome.")
@@ -284,26 +285,26 @@ with col_ferramentas:
         if not df.empty:
             # Lista ordenada com segurança de string
             opcoes_remocao = sorted(df[col_usuario].dropna().astype(str).unique().tolist())
-            usuario_a_remover = st.selectbox("Selecione o Usuário para Remover", ['-- Selecione --'] + opcoes_remocao, key='remove_user_select')
+            usuario_a_remover = st.selectbox("Selecione para Remover", ['-- Selecione --'] + opcoes_remocao, key='remove_user_select')
             if usuario_a_remover != '-- Selecione --':
-                st.warning(f"Confirme a remoção de **{usuario_a_remover}**. Permanente.")
-                if st.button(f"Confirmar Remoção de {usuario_a_remover}", type="secondary", key='final_remove_button', use_container_width=True):
+                st.warning(f"Confirme a remoção de **{usuario_a_remover}**.")
+                if st.button(f"Confirmar Remoção", type="secondary", key='final_remove_button', use_container_width=True):
                     # Filtro seguro
                     df = df[df[col_usuario].astype(str) != str(usuario_a_remover)]
                     if salvar_dados(df, SHEET_NAME_PRINCIPAL):
                         st.session_state.usuario_selecionado_id = '-- Selecione o Membro --' 
-                        st.success(f"Membro {usuario_a_remover} removido com sucesso!")
+                        st.success("Membro removido!")
                         st.rerun()
         st.markdown("---")
         if st.button("Resetar Tabela INTEIRA"):
             st.session_state.confirm_reset = True
         if st.session_state.confirm_reset:
-            st.error("Tem certeza? Esta ação é IRREVERSÍVEL.")
+            st.error("Esta ação é IRREVERSÍVEL.")
             if st.button("SIM, ZERAR TUDO", type="secondary", key='sim_reset', use_container_width=True):
                 df_reset = pd.DataFrame(columns=df.columns) 
                 if salvar_dados(df_reset, SHEET_NAME_PRINCIPAL):
                     st.session_state.usuario_selecionado_id = '-- Selecione o Membro --' 
-                    st.success("Tabela zerada com sucesso!")
+                    st.success("Tabela zerada!")
                     st.session_state.confirm_reset = False
                     st.rerun()
 
