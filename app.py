@@ -125,29 +125,26 @@ def configurar_estetica_visual():
     """, unsafe_allow_html=True)
 
 # ==============================================================================
-# --- 2. DADOS E LÓGICA ---
+# --- 2. DADOS E LÓGICA (NOVA HIERARQUIA 1 > note) ---
 # ==============================================================================
 
+# Definição das Metas (Calculadas de ~700 a ~11.000)
 METAS_PONTUACAO = {
-    'f*ck':      {'ciclo': 1, 'meta_up': 10, 'meta_manter': 7},
-    '100%':      {'ciclo': 1, 'meta_up': 17, 'meta_manter': 13},
-    'woo':       {'ciclo': 1, 'meta_up': 25, 'meta_manter': 20},
-    'sex':       {'ciclo': 1, 'meta_up': 35, 'meta_manter': 28},
-    'note':      {'ciclo': 1, 'meta_up': 45, 'meta_manter': 36},
-    'aura':      {'ciclo': 1, 'meta_up': 55, 'meta_manter': 44},
-    'all wild':  {'ciclo': 1, 'meta_up': 66, 'meta_manter': 53},
-    'cute':      {'ciclo': 1, 'meta_up': 78, 'meta_manter': 62},
-    'mello':     {'ciclo': 1, 'meta_up': 92, 'meta_manter': 74},
-    'void':      {'ciclo': 1, 'meta_up': 106, 'meta_manter': 85},
-    'dawn':      {'ciclo': 1, 'meta_up': 122, 'meta_manter': 98},
-    'upper':     {'ciclo': 1, 'meta_up': 140, 'meta_manter': 112},
-    'Light':     {'ciclo': 1, 'meta_up': 160, 'meta_manter': 128},
+    'note':  {'ciclo': 1, 'meta_up': 14,  'meta_manter': 11},  # ~700 msgs
+    'sex':   {'ciclo': 1, 'meta_up': 24,  'meta_manter': 19},  # ~1.200 msgs
+    'aura':  {'ciclo': 1, 'meta_up': 40,  'meta_manter': 32},  # ~2.000 msgs
+    'cute':  {'ciclo': 1, 'meta_up': 64,  'meta_manter': 51},  # ~3.200 msgs
+    'upper': {'ciclo': 1, 'meta_up': 96,  'meta_manter': 77},  # ~4.800 msgs
+    'damn':  {'ciclo': 1, 'meta_up': 130, 'meta_manter': 104}, # ~6.500 msgs
+    '3':     {'ciclo': 1, 'meta_up': 160, 'meta_manter': 128}, # ~8.000 msgs
+    '2':     {'ciclo': 1, 'meta_up': 190, 'meta_manter': 152}, # ~9.500 msgs
+    '1':     {'ciclo': 1, 'meta_up': 220, 'meta_manter': 176}, # ~11.000 msgs
 }
 
+# Lista ordenada do MENOR para o MAIOR (para o código saber qual é o próximo)
 CARGOS_LISTA = [
-    'f*ck', '100%', 'woo', 'sex', 'note', 'aura', 'all wild', 
-    'cute', 'mello', 
-    'void', 'dawn', 'upper', 'Light'
+    'note', 'sex', 'aura', 'cute',
+    'upper', 'damn', '3', '2', '1'
 ]
 
 MENSAGENS_POR_PONTO = 50
@@ -233,7 +230,8 @@ def calcular_pontuacao_semana(pontos_base, bonus, mult_ind):
     return round((pontos_base + bonus) * mult_ind, 1)
 
 def avaliar_situacao(cargo, semana_atual, pontos_acumulados):
-    meta = METAS_PONTUACAO[cargo]
+    meta = METAS_PONTUACAO.get(cargo)
+    if not meta: return "ERRO CARGO", 0 # Proteção contra cargos antigos
     if pontos_acumulados >= meta['meta_up']: return "UPADO", 0
     elif pontos_acumulados >= meta['meta_manter']: return "MANTEVE", 0
     else: return "REBAIXADO", 0
@@ -257,7 +255,7 @@ if 'salvar_button_clicked' not in st.session_state: st.session_state.salvar_butt
 if 'usuario_selecionado_id' not in st.session_state: st.session_state.usuario_selecionado_id = '-- Selecione o Membro --'
 
 col_ferramentas, col_upar, col_ranking = st.columns([1, 1.2, 2])
-cargo_inicial_default = CARGOS_LISTA.index('f*ck') if CARGOS_LISTA else 0
+cargo_inicial_default = 0 # Define note como padrão
 usuario_input_upar = None
 
 # === COLUNA 1: FERRAMENTAS ===
@@ -344,14 +342,23 @@ with col_ferramentas:
 with col_upar:
     st.subheader("Registro de Metas")
     
-    metas_data = []
-    for idx, (cargo, metas) in enumerate(METAS_PONTUACAO.items()):
-        msgs = metas['meta_up'] * MENSAGENS_POR_PONTO
-        metas_data.append({"Cargo (#)": f"{cargo} ({idx+1})", "Meta UP (msgs)": f"{msgs:,.0f}", "Msgs/Dia": f"{msgs/7:,.0f}"})
+    # Criar tabela de metas ordenadas do MAIOR (1) para o MENOR (note)
+    metas_ordenadas = []
+    # Inverter a lista para exibição (1 -> note)
+    for cargo in reversed(CARGOS_LISTA):
+        if cargo in METAS_PONTUACAO:
+            meta = METAS_PONTUACAO[cargo]
+            msgs_up = meta['meta_up'] * MENSAGENS_POR_PONTO
+            msgs_manter = meta['meta_manter'] * MENSAGENS_POR_PONTO
+            metas_ordenadas.append({
+                "Cargo": cargo, 
+                "Meta UP ⬆️": f"{msgs_up:,.0f}", 
+                "Manter ⚓": f"{msgs_manter:,.0f}"
+            })
     
-    # --- TABELA DE METAS FIXA (SEM EXPANDER) ---
+    # --- TABELA DE METAS FIXA ---
     st.markdown("##### 📋 Tabela de Metas")
-    st.dataframe(pd.DataFrame(metas_data), hide_index=True, use_container_width=True)
+    st.dataframe(pd.DataFrame(metas_ordenadas), hide_index=True, use_container_width=True)
     
     st.markdown("---")
     
@@ -397,8 +404,9 @@ with col_upar:
                     st.markdown("Semana do Ciclo:")
                     semana_input = st.number_input("Semana (1/1)", min_value=1, max_value=1, value=1, key='semana_input_update', label_visibility="collapsed")
                 else:
-                    st.error("Cargo desconhecido.")
-                    cargo_input = st.selectbox("Cargo", CARGOS_LISTA, index=0, key='cargo_select_update')
+                    st.error(f"Cargo '{dados[col_cargo]}' inválido ou antigo.")
+                    st.warning("Atualize o cargo deste membro na caixa abaixo para um da nova lista.")
+                    cargo_input = st.selectbox("Novo Cargo", CARGOS_LISTA, index=0, key='cargo_select_update')
 
             st.divider()
             st.markdown("##### Dados Semanais")
@@ -425,6 +433,12 @@ with col_upar:
         dados = df[df[col_usuario].astype(str) == str(usuario_input_upar)].iloc[0]
         pts_base = st.session_state.mensagens_input / 50.0
         pts_semana = calcular_pontuacao_semana(pts_base, st.session_state.bonus_input, st.session_state.mult_ind_input)
+        
+        # Proteção contra cargo inexistente na hora de calcular
+        if st.session_state.cargo_select_update not in METAS_PONTUACAO:
+             st.error("Cargo selecionado inválido.")
+             st.stop()
+
         situacao, _ = avaliar_situacao(st.session_state.cargo_select_update, 1, pts_semana)
         novo_cargo = st.session_state.cargo_select_update
         if situacao == "UPADO":
@@ -436,8 +450,9 @@ with col_upar:
             try: 
                 idx_c = CARGOS_LISTA.index(novo_cargo)
                 if idx_c > 0: novo_cargo = CARGOS_LISTA[idx_c-1]
-                else: novo_cargo = 'f*ck'
+                else: novo_cargo = 'note' # Cargo base fallback
             except: pass
+        
         novo_reg = {
             col_usuario: usuario_input_upar, col_user_id: dados.get(col_user_id, 'N/A'), col_cargo: novo_cargo, col_sit: situacao,
             col_sem: 1, col_pontos_acum: 0.0, col_pontos_sem: round(pts_semana, 1), col_bonus_sem: round(st.session_state.bonus_input, 1),
@@ -458,7 +473,10 @@ with col_ranking:
     if not df.empty:
         df_d = df.copy()
         c_ord = {c: i for i, c in enumerate(CARGOS_LISTA)}
-        df_d['rank'] = df_d[col_cargo].map(c_ord)
+        
+        # Proteção se houver cargo antigo no ranking que não está na lista nova
+        df_d['rank'] = df_d[col_cargo].map(c_ord).fillna(-1) 
+        
         df_d = df_d.sort_values(by=[col_pontos_final, 'rank'], ascending=[False, False])
         st.dataframe(df_d.style.map(lambda x: 'background-color:rgba(50,205,50,0.3);color:#ccffcc' if 'UPADO' in str(x) else ('background-color:rgba(200,0,0,0.4);color:#ffcccc' if 'REBAIXADO' in str(x) else ('background-color:rgba(218,165,32,0.3);color:#ffffcc' if 'MANTEVE' in str(x) else '')), subset=[col_sit]).format(precision=1), use_container_width=True, height=600, column_order=[col_usuario, col_user_id, col_cargo, col_sit, col_pontos_acum, col_pontos_sem, 'Data_Ultima_Atualizacao'])
     else: st.warning("Sem dados.")
